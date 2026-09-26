@@ -1,3 +1,4 @@
+# Variable and Array declaration 
 filename="Outputs.txt"
 break="false"
 stop="false"
@@ -8,7 +9,37 @@ sales_person_name=""
 declare -A month=(January, February, March, April, May, June, July, August, September,October, November, December)
 
 month_counter=1
+# Functions
+writeFile(){
+    while read -r line
+	do 
+		printf "%s,%s" "$month" "$sales_person_name" >> students.txt
+		for model in "${models_sold[@]}"
+		do 
+			printf "%s" "$model" >> students.txt
+		done
+			
+		printf "/n"
+	done
+} 
 
+# The following code displays only the necessary outputs from the file
+
+displaySalary(){
+    mapfile -t salaryRecord < student.txt
+    while read -r line 
+    do
+        record= "${salaryRecord["$counter"]}"
+
+        read -r monthS nameS soldModelsS salaryS netTaxedSalaryS <<< "$record"
+
+        printf "$s $d $d"  "$nameS" "$salaryS" "$netTaxedSalaryS" 
+        printf "/n"
+    done
+}
+
+
+# Main section
 if [ ! -f "$filename" ]; then
 	touch "$filename"
 	echo "Output.txt File exists now"
@@ -37,17 +68,8 @@ do
 			stop="True"
 		fi
 		
-		while read -r line
-		do 
-			printf "%s,%s" "$month" "$sales_person_name" >> students.txt
-			
-			for model in "${models_sold[@]}"
-			do 
-				printf "%s" "$model" >> students.txt
-			done
-			
-			printf "/n"
-		done
+        writeFile()
+
 		model_counter+=1
 	done
 	
@@ -69,10 +91,12 @@ do
     read -r monthTwo nameTwo soldModelsTwo <<<"$recordTwo"
 
     # The following is supposed to rearrange based on alphabetical order
+    # Currently it is not made so
     if ((nameOne > nameTwo)); then
         swap people["$count"] people["$count" +1]
 
 done < students.txt
 
-# The following contains the logic for displaying the required output
+# For displaying salary
 
+echo displaySalary

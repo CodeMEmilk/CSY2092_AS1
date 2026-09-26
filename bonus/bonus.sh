@@ -52,5 +52,27 @@ do
 	done
 	
 done
-	
-		
+
+
+# The following is for bubble sorting 
+count=0
+
+mapfile -t people < student.txt
+
+#The following needs to be incased in another loop for actual bubble sort 
+#The file will be sorted so no need to re-enter within the file 
+while read -r 
+do 
+    recordOne="${people["$count"]}"
+    recordTwo="${people["$count"+1]}"
+    read -r monthOne nameOne soldModelsOne <<<"$recordOne"
+    read -r monthTwo nameTwo soldModelsTwo <<<"$recordTwo"
+
+    # The following is supposed to rearrange based on alphabetical order
+    if ((nameOne > nameTwo)); then
+        swap people["$count"] people["$count" +1]
+
+done < students.txt
+
+# The following contains the logic for displaying the required output
+

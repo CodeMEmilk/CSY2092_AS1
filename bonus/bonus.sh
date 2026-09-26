@@ -6,6 +6,7 @@ declare -A models=([A class]=31095 [B class]=33162 [C class]=42537 [E class]=544
 
 declare -a models_sold
 sales_person_name=""
+
 declare -A month=(January, February, March, April, May, June, July, August, September,October, November, December)
 
 month_counter=1
@@ -36,6 +37,77 @@ displaySalary(){
         printf "$s $d $d"  "$nameS" "$salaryS" "$netTaxedSalaryS" 
         printf "/n"
     done
+}
+
+# The following calculates the monthly salary of salesperson from their total monthly Sales
+monthlySalary(){
+	monthlySalary=0
+	totalSales=0
+	for model in "${models_sold[@]}"
+	do 
+		case "$model" in 
+		"A class") totalSales+=31095;;
+		"B class") totalSales+=33162;;
+		"C class") totalSales+=42537;;
+		"E class") totalSales+=54437;;
+		"AMG C65") totalSales+=79660;;
+		esac
+	done
+	case true in
+	$( [[ $totalSales >= 200000 && $totalSales < 300000 ]] && echo true )) monthlySalary+=10000;;
+	$( [[ $totalSales >= 300000 && $totalSales < 400000 ]] && echo true )) monthlySalary+=15000;;
+	$( [[ $totalSales >= 400000 && $totalSales < 500000 ]] && echo true )) monthlySalary+=20000;;
+	$( [[ $totalSales >= 500000 && $totalSales < 650000 ]] && echo true )) monthlySalary+=25000;;
+	$( [[ $totalSales >= 650000 ]] && echo true )) monthlySalary+=30000;;
+	*) echo "No monthlySalary"
+	
+	esac
+	echo "$monthlySalary"
+}
+
+# The following function calculates the net salary after tax
+netTaxedSalary(){
+	tax=0
+	local annualSalary="$1"
+
+	case true in 
+	$( [[ $annualSalary <= 12500 ]] && echo true )) tax=0;;
+	$( [[ $annualSalary > 12500 && $annualSalary <= 50000 ]] && echo true )) tax=$(annualSalary*0.2);;
+	$( [[ $annualSalary > 50000 && $annualSalary < 150000 ]] && echo true )) tax=$(annualSalary*0.4);;
+	*) echo "No annualSalary"
+	esac
+	taxedSalary=$(annualSalary-tax);
+	echo "$taxedSalary"
+}
+
+# The following is my favorite solution 
+annualSalary(){
+	count1=0
+	count2=0
+	accuSalary=0
+	mapfile -t salaryLine < student.txt 
+	while read -r 
+	do 
+		record="${salaryLine["$count1"]}"
+		count1=$count2
+
+		read -r monthS nameS soldModelsS salaryS <<< "$record"
+
+		while read -r 
+		do
+			recordCom="${salaryLine["$count2"]}"
+			read -r monthSS nameSS soldModelsSS salarySS <<< "$recordCom"
+
+			if [[ "$nameS" == "$namess" ]]; then
+				accuSalary+="$salarySS"
+			fi
+			count2+=1
+		done
+		count2=$count1
+		count1+=1
+	done
+	# Now I just need to find a way to append this value to the file itself at each line.
+	echo "$accuSalary"
 }
 
 

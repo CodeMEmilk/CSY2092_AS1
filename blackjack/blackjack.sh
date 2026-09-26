@@ -1,0 +1,50 @@
+# Array Declaration
+declare -a deck=(
+    "A,A" "2,A" "3,A" "4,A" "5,A" "6,A" "7,A" "8,A" "9,A" "10,A" "J,A" "Q,A" "K,A"
+    "A,H" "2,H" "3,H" "4,H" "5,H" "6,H" "7,H" "8,H" "9,H" "10,H" "J,H" "Q,H" "K,H"
+    "A,S" "2,S" "3,S" "4,S" "5,S" "6,S" "7,S" "8,S" "9,S" "10,S" "J,S" "Q,S" "K,S"
+    "A,C" "2,C" "3,C" "4,C" "5,C" "6,C" "7,C" "8,C" "9,C" "10,C" "J,C" "Q,C" "K,C"
+)
+
+declare -a tempDeck=("${deck[@]}")
+
+# Below is code that allows for removing a card from the pool 
+
+drawnCardIndex=$((RANDOM % ${#tempDeck[@]}))
+
+# Creates empty index
+unset 'tempDeck["$drawnCardIndex"]'
+
+# Fix for empty indexs; simply shifts every element from empty to the left
+# Technically faster than tempDeck="${tempDeck[@]}", don't quote me on this 
+
+for (i="$drawnCardIndex"; "$i"<="${#tempDeck[@]}" ; i+=1)
+do
+    tempDeck[i]=${tempDeck[i + 1]}
+done
+
+point=0 
+# Below is a code that gives/collects the corresponding point value of 'picked' card
+
+pickedCard="${tempDeck["$drawnCardIndex"]}"
+
+IFS=',' read -r rank suit <<< "$pickedCard"
+
+case "$rank" in 
+    # need an if conditinal check for if point is below 11 or over; then respecitve values will be 11 and 1
+    "A" ) point+=11;;
+    2 ) point+=2;;
+    3 ) point+=3;;
+    4 ) point+=4;;
+    5 ) point+=5;;
+    6 ) point+=6;;
+    7 ) point+=7;;
+    8 ) point+=8;;
+    9 ) point+=9;;
+    10 ) point+=10;;
+    "J" ) point+=10;;
+    "Q" ) point+=10;;
+    "K" ) point+=10;;
+esac 
+
+

@@ -6,6 +6,22 @@ declare -a deck=(
     "A,C" "2,C" "3,C" "4,C" "5,C" "6,C" "7,C" "8,C" "9,C" "10,C" "J,C" "Q,C" "K,C"
 )
 
+declare -a tempDeck=("${deck[@]}")
+# Should I go for a array or a simple 3 variables for each player and dealer
+# declare -a dealerHand
+# declare -a playerHand
+
+# The followin is for variables
+dealerHand1=""
+dealerHand2=""
+dealerHandT=""
+
+playerHand1=""
+playerHand2=""
+playerHandT=""
+
+stand="false"
+
 # The following function is for dealing card
 dealCard(){
 # Below is code that allows for removing a card from the pool 
@@ -86,11 +102,93 @@ blackJackOutcome(){
 }
 
 # The following is code for simple point checking 
-if [[ "$point"==21 ]]; then
-    echo "Won"
-elif [[ "$point">21 ]]; then
-    echo "Game Over"
-fi
+comparePoints(){
+    local playerPoint=$($1 % 21)
+    local dealerPoint=$($2 % 21)
+
+    if [[ "$playerPoint" -le ]]; then
+        echo "Won"
+    elif [[ "$dealerPoint">21 ]]; then
+        echo "Game Over"
+    fi
+
+
+}
+
+
 
 # Main code block
-declare -a tempDeck=("${deck[@]}")
+tempDeck=("${deck[@]}")
+
+dealerHand1=dealCard
+dealerHand2=dealCard
+
+playerHand1=dealCard
+playerHand2=dealCard
+
+dealerBlackJack=blackJackCheck dealerHand1 dealerHand2 
+playerBlackJack=blackJackCheck playerHand1 playerHand2
+
+outcome=blackJackOutcome
+
+# Coditional check to end game
+if [[ "$outcome"=="dealer" ]]; then
+    echo "Dealer won the bet"
+elif [[ "$outcome"=="player" ]]; then
+    echo "Dealer won the bet"
+elif [[ "$outcome"=="push" ]]; then
+    echo "Player gets bet back!"
+fi 
+
+while [[ "$gameloop" ]]
+do 
+    tempDeck=("${deck[@]}")
+
+    dealerHand1=dealCard
+    dealerHand2=dealCard
+
+    playerHand1=dealCard
+    playerHand2=dealCard
+
+    dealerBlackJack=blackJackCheck dealerHand1 dealerHand2 
+    playerBlackJack=blackJackCheck playerHand1 playerHand2
+
+    outcome=blackJackOutcome
+
+    # Coditional check to end game
+    if [[ "$outcome"=="dealer" ]]; then
+        echo "Dealer won the bet"
+        gameloop="false"
+    elif [[ "$outcome"=="player" ]]; then
+        echo "Dealer won the bet"
+        gameloop="false"
+    elif [[ "$outcome"=="push" ]]; then
+        echo "Player gets bet back!"
+        gameloop="false"
+    fi 
+
+# The following is the loop for stand/hit
+    while [[ ! "$stand" ]]
+    do
+
+    echo "Stand or hit" choice
+
+    if [[ "$choice"=="Stand" ]]; then
+        echo "Player Standing"
+        break
+    elif [[ "$choice"=="Hit" ]]; then
+        echo "Player hit"
+
+        dealerHandT=dealCard
+        playerHandT=dealCard
+
+        playerPoint=getCardPoint
+        dealerPoint=getCardPoint
+        
+    fi 
+    done
+done
+
+
+
+

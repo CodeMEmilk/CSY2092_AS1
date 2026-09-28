@@ -1,8 +1,11 @@
 # ============================================================
-# Variable and Array declaration
+# Variable and Array Declaration
 # ============================================================
 
-filename="Outputs.txt"
+outputFile="Outputs.txt"
+annualFile="AnnualOutputs.txt"
+
+basicSalary=2000
 
 declare -A models=(
     ["A class"]=31095
@@ -12,277 +15,428 @@ declare -A models=(
     ["AMG C65"]=79660
 )
 
-declare -a models_sold
-declare -a month=(
+declare -a months=(
     January February March April May June
     July August September October November December
 )
 
-sales_person_name=""
-month_counter=0
-model_counter=0
+declare -a modelsSold
+
+salespersonName=""
+monthIndex=0
+modelCount=0
+
 
 # ============================================================
-# Function: writeFile
-# Writes one salesperson's record to the output file
+# Function: writeRecord
+# Writes one salesperson's monthly record to the output file
 # ============================================================
 
-writeFile(){
-
-    local totalSales
-    totalSales=0
-
-    for model in "${models_sold[@]}"
-    do
-        (( totalSales += models[$model] ))
-    done
-
-    local bonus
-    bonus=$(monthlySalary)
-
-    local monthlySalaryValue
-    monthlySalaryValue=$(( 2000 + bonus ))
-
-    local annualSalaryValue
-    annualSalaryValue=$(( monthlySalaryValue * 12 ))
-
-    local netSalary
-    netSalary=$(netTaxedSalary "$annualSalaryValue")
-
-    printf "%s|%s|%s|%d|%d|%d\n" \
-        "${month[$month_counter]}" \
-        "$sales_person_name" \
-        "$(IFS=','; echo "${models_sold[*]}")" \
-        "$totalSales" \
-        "$monthlySalaryValue" \
-        "$netSalary" >> "$filename"
-}
-
-# ============================================================
-# Function: displaySalary
-# Displays name and associated net salary
-# ============================================================
-
-displaySalary(){
-
-    echo
-    echo "=============================================="
-    echo "        SALES PERSON SALARY RESULTS"
-    echo "=============================================="
-    printf "%-25s %-15s %-15s\n" \
-        "Name" "Monthly Salary" "Net Annual Salary"
-    echo "----------------------------------------------"
-
-    local line
-    local monthS
-    local nameS
-    local soldModelsS
-    local totalSalesS
-    local salaryS
-    local netTaxedSalaryS
-
-    while IFS='|' read -r \
-        monthS \
-        nameS \
-        soldModelsS \
-        totalSalesS \
-        salaryS \
-        netTaxedSalaryS
-    do
-
-        printf "%-25s £%-14s £%-14s\n" \
-            "$nameS" \
-            "$salaryS" \
-            "$netTaxedSalaryS"
-
-    done < "$filename"
-
-    echo "=============================================="
-}
-
-# ============================================================
-# Function: monthlySalary
-# Calculates bonus based on total monthly sales
-# ============================================================
-
-monthlySalary(){
+writeRecord(){
 
     local totalSales=0
-    local monthlyBonus=0
+    local bonus=0
+    local monthlySalary=0
 
-    for model in "${models_sold[@]}"
+    for model in "${modelsSold[@]}"
     do
-        (( totalSales += models[$model] ))
+        (( totalSales += models["$model"] ))
     done
 
-    if (( totalSales >= 200000 && totalSales < 300000 )); then
+    bonus=$(monthlyBonus "$totalSales")
 
-        monthlyBonus=10000
+    monthlySalary=$(( basicSalary + bonus ))
 
-    elif (( totalSales >= 300000 && totalSales < 400000 )); then
+    printf "%s|%s|%s|%d|%d\n" \
+        "${months[$monthIndex]}" \
+        "$salespersonName" \
+        "$(IFS=','; echo "${modelsSold[*]}")" \
+        "$totalSales" \
+        "$monthlySalary" >> "$outputFile"
+}
 
-        monthlyBonus=15000
 
-    elif (( totalSales >= 400000 && totalSales < 500000 )); then
+# ============================================================
+# Function: monthlyBonus
+# Calculates bonus from total monthly sales
+# ============================================================
 
-        monthlyBonus=20000
+monthlyBonus(){
 
-    elif (( totalSales >= 500000 && totalSales < 650000 )); then
+    local totalSales="$1"
+    local bonus=0
 
-        monthlyBonus=25000
+    if (( totalSales >= 650000 )); then
 
-    elif (( totalSales >= 650000 )); then
+        bonus=30000
 
-        monthlyBonus=30000
+    elif (( totalSales >= 500000 )); then
 
-    else
+        bonus=25000
 
-        monthlyBonus=0
+    elif (( totalSales >= 400000 )); then
+
+        bonus=20000
+
+    elif (( totalSales >= 300000 )); then
+
+        bonus=15000
+
+    elif (( totalSales >= 200000 )); then
+
+        bonus=10000
 
     fi
 
-    echo "$monthlyBonus"
+    echo "$bonus"
 }
+
 
 # ============================================================
 # Function: netTaxedSalary
-# Calculates annual tax using the supplied tax bands
+# Calculates net annual salary after tax
 # ============================================================
 
 netTaxedSalary(){
 
     local annualSalary="$1"
     local tax=0
-    local taxableBasic=0
-    local taxableHigher=0
 
-    # Personal allowance
     if (( annualSalary <= 12500 )); then
 
         tax=0
 
-    # Basic-rate band
     elif (( annualSalary <= 50000 )); then
 
-        taxableBasic=$(( annualSalary - 12500 ))
-        tax=$(( taxableBasic * 20 / 100 ))
+        tax=$(( (annualSalary - 12500) * 20 / 100 ))
 
-    # Higher-rate band
     elif (( annualSalary <= 150000 )); then
 
-        taxableBasic=$(( 50000 - 12500 ))
-        taxableHigher=$(( annualSalary - 50000 ))
-
-        tax=$(( taxableBasic * 20 / 100 ))
-        tax=$(( tax + taxableHigher * 40 / 100 ))
+        tax=$(( (50000 - 12500) * 20 / 100 ))
+        tax=$(( tax + (annualSalary - 50000) * 40 / 100 ))
 
     else
 
-        # The assignment does not specify a tax rate above £150,000.
-        # Therefore only the supplied £12,500-£150,000 bands are used.
+        # The assignment does not specify a tax rate
+        # for income above £150,000.
 
-        taxableBasic=$(( 50000 - 12500 ))
-        taxableHigher=$(( 150000 - 50000 ))
+        tax=$(( (50000 - 12500) * 20 / 100 ))
+        tax=$(( tax + (150000 - 50000) * 40 / 100 ))
 
-        tax=$(( taxableBasic * 20 / 100 ))
-        tax=$(( tax + taxableHigher * 40 / 100 ))
-
-        echo "Warning: Tax rate above £150,000 is not specified in the assignment." >&2
+        echo "Warning: No tax rate specified above £150,000." >&2
 
     fi
 
     echo $(( annualSalary - tax ))
 }
 
+
 # ============================================================
-# Function: annualSalary
-# Calculates annual salary for a salesperson
+# Function: calculateAnnualSalary
+#
+# Takes the names from the first month and searches the
+# complete monthly record file for every occurrence of each
+# salesperson's name.
+#
+# The matching monthly salaries are accumulated and then
+# passed to netTaxedSalary().
 # ============================================================
 
-annualSalary(){
+calculateAnnualSalary(){
 
-    local targetName="$1"
-    local annualTotal=0
+    local -a records
+    local -a salespeople
 
-    local monthS
-    local nameS
-    local soldModelsS
-    local totalSalesS
-    local salaryS
-    local netTaxedSalaryS
+    local firstMonth=""
+    local recordMonth=""
+    local recordName=""
+    local recordSalary=""
 
-    while IFS='|' read -r \
-        monthS \
-        nameS \
-        soldModelsS \
-        totalSalesS \
-        salaryS \
-        netTaxedSalaryS
+    local salesperson=""
+    local annualGross=0
+    local annualNet=0
+
+    local recordIndex
+    local matchIndex
+
+    declare -A knownSalespeople=()
+
+
+    # --------------------------------------------------------
+    # Read all monthly records
+    # --------------------------------------------------------
+
+    mapfile -t records < "$outputFile"
+
+
+    if (( ${#records[@]} == 0 )); then
+
+        echo "No monthly records found."
+        return 1
+
+    fi
+
+
+    # --------------------------------------------------------
+    # Identify the first month
+    # --------------------------------------------------------
+
+    IFS='|' read -r firstMonth recordName _ _ _ \
+        <<< "${records[0]}"
+
+
+    # --------------------------------------------------------
+    # Extract unique salesperson names from the first month
+    # --------------------------------------------------------
+
+    salespeople=()
+
+    for (( recordIndex=0; recordIndex<${#records[@]}; recordIndex++ ))
     do
 
-        if [[ "$nameS" == "$targetName" ]]; then
-            (( annualTotal += salaryS ))
+        IFS='|' read -r recordMonth recordName _ _ _ \
+            <<< "${records[$recordIndex]}"
+
+
+        # First month's records have ended
+        if [[ "$recordMonth" != "$firstMonth" ]]; then
+            break
         fi
 
-    done < "$filename"
 
-    echo "$annualTotal"
+        # Add salesperson only once
+        if [[ -z "${knownSalespeople[$recordName]}" ]]; then
+
+            salespeople+=("$recordName")
+            knownSalespeople["$recordName"]=1
+
+        fi
+
+    done
+
+
+    # --------------------------------------------------------
+    # Create a fresh annual output file
+    # --------------------------------------------------------
+
+    : > "$annualFile"
+
+
+    # --------------------------------------------------------
+    # Process each salesperson
+    # --------------------------------------------------------
+
+    for salesperson in "${salespeople[@]}"
+    do
+
+        annualGross=0
+
+
+        # ----------------------------------------------------
+        # Search every monthly record for this salesperson
+        # ----------------------------------------------------
+
+        for (( matchIndex=0; matchIndex<${#records[@]}; matchIndex++ ))
+        do
+
+            IFS='|' read -r recordMonth recordName _ _ recordSalary \
+                <<< "${records[$matchIndex]}"
+
+
+            if [[ "$salesperson" == "$recordName" ]]; then
+
+                (( annualGross += recordSalary ))
+
+            fi
+
+        done
+
+
+        # ----------------------------------------------------
+        # Calculate annual net salary
+        # ----------------------------------------------------
+
+        annualNet=$(netTaxedSalary "$annualGross")
+
+
+        # ----------------------------------------------------
+        # Save annual result
+        #
+        # name | annual gross | annual net
+        # ----------------------------------------------------
+
+        printf "%s|%d|%d\n" \
+            "$salesperson" \
+            "$annualGross" \
+            "$annualNet" >> "$annualFile"
+
+    done
+
+
+    echo "Annual salary data saved to $annualFile"
 }
+
+
+# ============================================================
+# Function: bubbleSortAnnual
+# Sorts annual salary records alphabetically by salesperson
+# ============================================================
+
+bubbleSortAnnual(){
+
+    local -a records
+    local recordCount
+    local outerIndex
+    local innerIndex
+    local firstName
+    local secondName
+    local temporaryRecord
+
+    mapfile -t records < "$annualFile"
+
+    recordCount="${#records[@]}"
+
+
+    for (( outerIndex=0; outerIndex<recordCount-1; outerIndex++ ))
+    do
+
+        for (( innerIndex=0;
+               innerIndex<recordCount-outerIndex-1;
+               innerIndex++ ))
+        do
+
+            IFS='|' read -r firstName _ _ \
+                <<< "${records[$innerIndex]}"
+
+            IFS='|' read -r secondName _ _ \
+                <<< "${records[$((innerIndex + 1))]}"
+
+
+            if [[ "$firstName" > "$secondName" ]]; then
+
+                temporaryRecord="${records[$innerIndex]}"
+
+                records[$innerIndex]="${records[$((innerIndex + 1))]}"
+
+                records[$((innerIndex + 1))]="$temporaryRecord"
+
+            fi
+
+        done
+
+    done
+
+
+    # --------------------------------------------------------
+    # Rewrite sorted records
+    # --------------------------------------------------------
+
+    : > "$annualFile"
+
+    for record in "${records[@]}"
+    do
+        echo "$record" >> "$annualFile"
+    done
+}
+
+
+# ============================================================
+# Function: displayAnnualSalary
+# Displays name, gross annual salary and net annual salary
+# ============================================================
+
+displayAnnualSalary(){
+
+    local record
+    local salesperson
+    local annualGross
+    local annualNet
+
+
+    echo
+    echo "=================================================="
+    echo "             ANNUAL SALARY RESULTS"
+    echo "=================================================="
+
+    printf "%-25s %-18s %-18s\n" \
+        "Salesperson" \
+        "Gross Salary" \
+        "Net Salary"
+
+    echo "--------------------------------------------------"
+
+
+    while IFS='|' read -r salesperson annualGross annualNet
+    do
+
+        printf "%-25s £%-17d £%-17d\n" \
+            "$salesperson" \
+            "$annualGross" \
+            "$annualNet"
+
+    done < "$annualFile"
+
+
+    echo "=================================================="
+}
+
 
 # ============================================================
 # Main Section
 # ============================================================
 
-if [[ ! -f "$filename" ]]; then
+if [[ ! -f "$outputFile" ]]; then
 
-    touch "$filename"
+    touch "$outputFile"
 
-    echo "$filename created."
+    echo "$outputFile created."
 
 else
 
-    echo "$filename already exists."
+    echo "$outputFile already exists."
 
 fi
 
-# Clear previous data for this run
-> "$filename"
+
+# Start with a clean monthly data file
+: > "$outputFile"
+
 
 # ============================================================
 # Number of Salespersons
 # ============================================================
-
-local_dummy=""
 
 while true
 do
 
     read -r -p "Enter number of salespersons (3-20): " salespersonCount
 
+
     if [[ "$salespersonCount" =~ ^[0-9]+$ ]] &&
        (( salespersonCount >= 3 && salespersonCount <= 20 )); then
 
         break
 
-    else
-
-        echo "Invalid input. Please enter a number between 3 and 20."
-
     fi
+
+
+    echo "Invalid input. Enter a number between 3 and 20."
 
 done
 
+
 # ============================================================
-# Enter salesperson data
+# Enter Salesperson Data
 # ============================================================
 
-for (( person=1; person<=salespersonCount; person++ ))
+for (( personIndex=1; personIndex<=salespersonCount; personIndex++ ))
 do
 
     echo
     echo "=============================================="
-    echo "Entering details for salesperson $person"
+    echo "Salesperson $personIndex"
     echo "=============================================="
+
 
     # --------------------------------------------------------
     # Month
@@ -293,200 +447,199 @@ do
 
         read -r -p "Enter month: " monthInput
 
-        if [[ "$monthInput" =~ ^[Jj]anuary$ ]]; then
-            month_counter=0
-            break
 
-        elif [[ "$monthInput" =~ ^[Ff]ebruary$ ]]; then
-            month_counter=1
-            break
+        case "$monthInput" in
 
-        elif [[ "$monthInput" =~ ^[Mm]arch$ ]]; then
-            month_counter=2
-            break
+            [Jj]anuary)
+                monthIndex=0
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Aa]pril$ ]]; then
-            month_counter=3
-            break
+            [Ff]ebruary)
+                monthIndex=1
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Mm]ay$ ]]; then
-            month_counter=4
-            break
+            [Mm]arch)
+                monthIndex=2
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Jj]une$ ]]; then
-            month_counter=5
-            break
+            [Aa]pril)
+                monthIndex=3
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Jj]uly$ ]]; then
-            month_counter=6
-            break
+            [Mm]ay)
+                monthIndex=4
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Aa]ugust$ ]]; then
-            month_counter=7
-            break
+            [Jj]une)
+                monthIndex=5
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Ss]eptember$ ]]; then
-            month_counter=8
-            break
+            [Jj]uly)
+                monthIndex=6
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Oo]ctober$ ]]; then
-            month_counter=9
-            break
+            [Aa]ugust)
+                monthIndex=7
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Nn]ovember$ ]]; then
-            month_counter=10
-            break
+            [Ss]eptember)
+                monthIndex=8
+                break
+                ;;
 
-        elif [[ "$monthInput" =~ ^[Dd]ecember$ ]]; then
-            month_counter=11
-            break
+            [Oo]ctober)
+                monthIndex=9
+                break
+                ;;
 
-        else
+            [Nn]ovember)
+                monthIndex=10
+                break
+                ;;
 
-            echo "Invalid month. Please enter a valid month."
+            [Dd]ecember)
+                monthIndex=11
+                break
+                ;;
 
-        fi
+            *)
+                echo "Invalid month."
+                ;;
+
+        esac
 
     done
 
+
     # --------------------------------------------------------
-    # Salesperson name
+    # Salesperson Name
     # --------------------------------------------------------
 
     while true
     do
 
-        read -r -p "Enter salesperson name: " sales_person_name
+        read -r -p "Enter salesperson name: " salespersonName
 
-        if [[ "$sales_person_name" =~ ^[A-Za-z][A-Za-z[:space:]\'-]*$ ]]; then
+
+        if [[ "$salespersonName" =~ ^[A-Za-z][A-Za-z\ \'-]*$ ]]; then
+
             break
-        else
-            echo "Invalid name. Please use alphabetic characters only."
+
         fi
+
+
+        echo "Invalid name. Please use letters, spaces, apostrophes or hyphens."
 
     done
 
+
     # --------------------------------------------------------
-    # Models sold
+    # Models Sold
     # --------------------------------------------------------
 
-    models_sold=()
-    model_counter=0
+    modelsSold=()
+    modelCount=0
+
 
     echo
     echo "Available models:"
-    echo "A class"
-    echo "B class"
-    echo "C class"
-    echo "E class"
-    echo "AMG C65"
+    echo "  A class"
+    echo "  B class"
+    echo "  C class"
+    echo "  E class"
+    echo "  AMG C65"
     echo
-    echo "Enter N when you have finished entering models."
+    echo "Enter N when finished."
+
 
     while true
     do
 
-        read -r -p "Enter model sold: " temp
+        read -r -p "Enter model sold: " modelInput
 
-        # N terminates model entry
-        if [[ "$temp" =~ ^[Nn]$ ]]; then
 
-            if (( model_counter == 0 )); then
+        if [[ "$modelInput" =~ ^[Nn]$ ]]; then
+
+            if (( modelCount == 0 )); then
+
                 echo "At least one model must be entered."
                 continue
+
             fi
 
             break
 
-        # Regular-expression validation
-        elif [[ "$temp" =~ ^(A|a)[[:space:]]+(class|Class)$ ]]; then
-
-            models_sold[$model_counter]="A class"
-
-        elif [[ "$temp" =~ ^(B|b)[[:space:]]+(class|Class)$ ]]; then
-
-            models_sold[$model_counter]="B class"
-
-        elif [[ "$temp" =~ ^(C|c)[[:space:]]+(class|Class)$ ]]; then
-
-            models_sold[$model_counter]="C class"
-
-        elif [[ "$temp" =~ ^(E|e)[[:space:]]+(class|Class)$ ]]; then
-
-            models_sold[$model_counter]="E class"
-
-        elif [[ "$temp" =~ ^(AMG|amg)[[:space:]]+(C65|c65)$ ]]; then
-
-            models_sold[$model_counter]="AMG C65"
-
-        else
-
-            echo "Invalid model. Please enter one of the listed models."
-            continue
-
         fi
 
-        (( model_counter++ ))
+
+        case "$modelInput" in
+
+            [Aa]" "[Cc]lass)
+                modelsSold[$modelCount]="A class"
+                ;;
+
+            [Bb]" "[Cc]lass)
+                modelsSold[$modelCount]="B class"
+                ;;
+
+            [Cc]" "[Cc]lass)
+                modelsSold[$modelCount]="C class"
+                ;;
+
+            [Ee]" "[Cc]lass)
+                modelsSold[$modelCount]="E class"
+                ;;
+
+            [Aa][Mm][Gg]" "[Cc]65)
+                modelsSold[$modelCount]="AMG C65"
+                ;;
+
+            *)
+                echo "Invalid model."
+                continue
+                ;;
+
+        esac
+
+
+        (( modelCount++ ))
 
     done
 
+
     # --------------------------------------------------------
-    # Save record
+    # Save this salesperson's monthly record
     # --------------------------------------------------------
 
-    writeFile
+    writeRecord
 
 done
+
+
+# ============================================================
+# Annual Salary Calculation
+# ============================================================
+
+calculateAnnualSalary
+
 
 # ============================================================
 # Bubble Sort
 # ============================================================
 
-mapfile -t people < "$filename"
+bubbleSortAnnual
 
-numberOfRecords="${#people[@]}"
-
-for (( i=0; i<numberOfRecords-1; i++ ))
-do
-
-    for (( j=0; j<numberOfRecords-i-1; j++ ))
-    do
-
-        IFS='|' read -r monthOne nameOne soldModelsOne \
-            totalSalesOne salaryOne netSalaryOne <<< "${people[$j]}"
-
-        IFS='|' read -r monthTwo nameTwo soldModelsTwo \
-            totalSalesTwo salaryTwo netSalaryTwo <<< "${people[$((j+1))]}"
-
-        # Alphabetical comparison
-        if [[ "$nameOne" > "$nameTwo" ]]; then
-
-            tempRecord="${people[$j]}"
-            people[$j]="${people[$((j+1))]}"
-            people[$((j+1))]="$tempRecord"
-
-        fi
-
-    done
-
-done
 
 # ============================================================
-# Rewrite file after bubble sort
+# Display Final Results
 # ============================================================
 
-: > "$filename"
-
-for record in "${people[@]}"
-do
-    echo "$record" >> "$filename"
-done
-
-# ============================================================
-# Display results
-# ============================================================
-
-displaySalary
-
-echo
-echo "Data has been saved to: $filename"
+displayAnnualSalary

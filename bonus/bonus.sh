@@ -28,8 +28,21 @@ modelCount=0
 
 
 # ============================================================
+# Check Whiptail
+# ============================================================
+
+if ! command -v whiptail >/dev/null 2>&1; then
+
+    echo "Error: Whiptail is not installed."
+    echo "Please install it before running this program."
+
+    exit 1
+
+fi
+
+
+# ============================================================
 # Function: writeRecord
-# Writes one salesperson's monthly record to the output file
 # ============================================================
 
 writeRecord(){
@@ -58,7 +71,6 @@ writeRecord(){
 
 # ============================================================
 # Function: monthlyBonus
-# Calculates bonus from total monthly sales
 # ============================================================
 
 monthlyBonus(){
@@ -94,7 +106,6 @@ monthlyBonus(){
 
 # ============================================================
 # Function: netTaxedSalary
-# Calculates net annual salary after tax
 # ============================================================
 
 netTaxedSalary(){
@@ -118,12 +129,10 @@ netTaxedSalary(){
     else
 
         # The assignment does not specify a tax rate
-        # for income above £150,000.
+        # above £150,000.
 
         tax=$(( (50000 - 12500) * 20 / 100 ))
         tax=$(( tax + (150000 - 50000) * 40 / 100 ))
-
-        echo "Warning: No tax rate specified above £150,000." >&2
 
     fi
 
@@ -134,12 +143,8 @@ netTaxedSalary(){
 # ============================================================
 # Function: calculateAnnualSalary
 #
-# Takes the names from the first month and searches the
-# complete monthly record file for every occurrence of each
-# salesperson's name.
-#
-# The matching monthly salaries are accumulated and then
-# passed to netTaxedSalary().
+# Gets unique names from the first month, then searches the
+# entire monthly record file for each salesperson.
 # ============================================================
 
 calculateAnnualSalary(){
@@ -163,7 +168,7 @@ calculateAnnualSalary(){
 
 
     # --------------------------------------------------------
-    # Read all monthly records
+    # Read monthly records
     # --------------------------------------------------------
 
     mapfile -t records < "$outputFile"
@@ -171,14 +176,18 @@ calculateAnnualSalary(){
 
     if (( ${#records[@]} == 0 )); then
 
-        echo "No monthly records found."
+        whiptail \
+            --title "Annual Salary Error" \
+            --msgbox "No monthly salary records were found." \
+            8 50
+
         return 1
 
     fi
 
 
     # --------------------------------------------------------
-    # Identify the first month
+    # Identify first month
     # --------------------------------------------------------
 
     IFS='|' read -r firstMonth recordName _ _ _ \
@@ -186,7 +195,7 @@ calculateAnnualSalary(){
 
 
     # --------------------------------------------------------
-    # Extract unique salesperson names from the first month
+    # Get unique names from first month
     # --------------------------------------------------------
 
     salespeople=()
@@ -198,13 +207,11 @@ calculateAnnualSalary(){
             <<< "${records[$recordIndex]}"
 
 
-        # First month's records have ended
         if [[ "$recordMonth" != "$firstMonth" ]]; then
             break
         fi
 
 
-        # Add salesperson only once
         if [[ -z "${knownSalespeople[$recordName]}" ]]; then
 
             salespeople+=("$recordName")
@@ -216,14 +223,14 @@ calculateAnnualSalary(){
 
 
     # --------------------------------------------------------
-    # Create a fresh annual output file
+    # Create annual output file
     # --------------------------------------------------------
 
     : > "$annualFile"
 
 
     # --------------------------------------------------------
-    # Process each salesperson
+    # Match every salesperson against entire file
     # --------------------------------------------------------
 
     for salesperson in "${salespeople[@]}"
@@ -231,10 +238,6 @@ calculateAnnualSalary(){
 
         annualGross=0
 
-
-        # ----------------------------------------------------
-        # Search every monthly record for this salesperson
-        # ----------------------------------------------------
 
         for (( matchIndex=0; matchIndex<${#records[@]}; matchIndex++ ))
         do
@@ -253,16 +256,14 @@ calculateAnnualSalary(){
 
 
         # ----------------------------------------------------
-        # Calculate annual net salary
+        # Calculate net annual salary
         # ----------------------------------------------------
 
         annualNet=$(netTaxedSalary "$annualGross")
 
 
         # ----------------------------------------------------
-        # Save annual result
-        #
-        # name | annual gross | annual net
+        # Save annual record
         # ----------------------------------------------------
 
         printf "%s|%d|%d\n" \
@@ -272,30 +273,39 @@ calculateAnnualSalary(){
 
     done
 
-
-    echo "Annual salary data saved to $annualFile"
 }
 
 
 # ============================================================
 # Function: bubbleSortAnnual
-# Sorts annual salary records alphabetically by salesperson
+#
+# IMPORTANT:
+# This is a genuine bubble sort.
+# Bash sort command is NOT used.
 # ============================================================
 
 bubbleSortAnnual(){
 
     local -a records
+
     local recordCount
     local outerIndex
     local innerIndex
+
     local firstName
     local secondName
+
     local temporaryRecord
+
 
     mapfile -t records < "$annualFile"
 
     recordCount="${#records[@]}"
 
+
+    # --------------------------------------------------------
+    # Bubble sort
+    # --------------------------------------------------------
 
     for (( outerIndex=0; outerIndex<recordCount-1; outerIndex++ ))
     do
@@ -328,56 +338,51 @@ bubbleSortAnnual(){
 
 
     # --------------------------------------------------------
-    # Rewrite sorted records
+    # Rewrite AnnualOutputs.txt
     # --------------------------------------------------------
 
     : > "$annualFile"
 
     for record in "${records[@]}"
     do
+
         echo "$record" >> "$annualFile"
+
     done
+
 }
 
 
 # ============================================================
 # Function: displayAnnualSalary
-# Displays name, gross annual salary and net annual salary
 # ============================================================
 
 displayAnnualSalary(){
 
-    local record
     local salesperson
     local annualGross
     local annualNet
 
-
-    echo
-    echo "=================================================="
-    echo "             ANNUAL SALARY RESULTS"
-    echo "=================================================="
-
-    printf "%-25s %-18s %-18s\n" \
-        "Salesperson" \
-        "Gross Salary" \
-        "Net Salary"
-
-    echo "--------------------------------------------------"
+    local displayText=""
 
 
     while IFS='|' read -r salesperson annualGross annualNet
     do
 
-        printf "%-25s £%-17d £%-17d\n" \
-            "$salesperson" \
-            "$annualGross" \
-            "$annualNet"
+        displayText+="Salesperson: $salesperson"$'\n'
+        displayText+="Gross Annual Salary: £$annualGross"$'\n'
+        displayText+="Net Annual Salary: £$annualNet"$'\n'
+        displayText+="--------------------------------"$'\n'
 
     done < "$annualFile"
 
 
-    echo "=================================================="
+    whiptail \
+        --title "Annual Salary Results" \
+        --scrolltext \
+        --msgbox "$displayText" \
+        20 70
+
 }
 
 
@@ -385,21 +390,46 @@ displayAnnualSalary(){
 # Main Section
 # ============================================================
 
+# ------------------------------------------------------------
+# Create output files
+# ------------------------------------------------------------
+
 if [[ ! -f "$outputFile" ]]; then
 
     touch "$outputFile"
 
-    echo "$outputFile created."
+fi
 
-else
+if [[ ! -f "$annualFile" ]]; then
 
-    echo "$outputFile already exists."
+    touch "$annualFile"
 
 fi
 
 
-# Start with a clean monthly data file
+# Start fresh
 : > "$outputFile"
+: > "$annualFile"
+
+
+# ============================================================
+# Welcome Screen
+# ============================================================
+
+whiptail \
+    --title "Mercedes-Benz Sales Bonus System" \
+    --msgbox \
+    "Welcome to the Mercedes-Benz Salesperson Salary System.
+
+This program calculates:
+• Monthly sales
+• Monthly bonus
+• Monthly salary
+• Annual gross salary
+• Annual net salary after tax
+
+Between 3 and 20 salespersons can be entered." \
+    14 65
 
 
 # ============================================================
@@ -409,9 +439,31 @@ fi
 while true
 do
 
-    read -r -p "Enter number of salespersons (3-20): " salespersonCount
+    salespersonCount=$(
+        whiptail \
+            --title "Salesperson Information" \
+            --inputbox \
+            "Enter number of salespersons (3-20):" \
+            10 50 \
+            3 \
+            3>&1 1>&2 2>&3
+    )
 
 
+    # Cancel
+    if [[ $? -ne 0 ]]; then
+
+        whiptail \
+            --title "Program Cancelled" \
+            --msgbox "No data was saved." \
+            8 40
+
+        exit 0
+
+    fi
+
+
+    # Regular expression validation
     if [[ "$salespersonCount" =~ ^[0-9]+$ ]] &&
        (( salespersonCount >= 3 && salespersonCount <= 20 )); then
 
@@ -420,7 +472,11 @@ do
     fi
 
 
-    echo "Invalid input. Enter a number between 3 and 20."
+    whiptail \
+        --title "Invalid Input" \
+        --msgbox \
+        "Please enter a whole number between 3 and 20." \
+        8 50
 
 done
 
@@ -432,89 +488,58 @@ done
 for (( personIndex=1; personIndex<=salespersonCount; personIndex++ ))
 do
 
-    echo
-    echo "=============================================="
-    echo "Salesperson $personIndex"
-    echo "=============================================="
-
-
     # --------------------------------------------------------
-    # Month
+    # Select Month
     # --------------------------------------------------------
 
     while true
     do
 
-        read -r -p "Enter month: " monthInput
+        monthInput=$(
+            whiptail \
+                --title "Salesperson $personIndex - Month" \
+                --menu \
+                "Select the month:" \
+                18 60 12 \
+                "January" "January" \
+                "February" "February" \
+                "March" "March" \
+                "April" "April" \
+                "May" "May" \
+                "June" "June" \
+                "July" "July" \
+                "August" "August" \
+                "September" "September" \
+                "October" "October" \
+                "November" "November" \
+                "December" "December" \
+                3>&1 1>&2 2>&3
+        )
+
+
+        if [[ $? -ne 0 ]]; then
+            exit 0
+        fi
 
 
         case "$monthInput" in
 
-            [Jj]anuary)
-                monthIndex=0
-                break
-                ;;
-
-            [Ff]ebruary)
-                monthIndex=1
-                break
-                ;;
-
-            [Mm]arch)
-                monthIndex=2
-                break
-                ;;
-
-            [Aa]pril)
-                monthIndex=3
-                break
-                ;;
-
-            [Mm]ay)
-                monthIndex=4
-                break
-                ;;
-
-            [Jj]une)
-                monthIndex=5
-                break
-                ;;
-
-            [Jj]uly)
-                monthIndex=6
-                break
-                ;;
-
-            [Aa]ugust)
-                monthIndex=7
-                break
-                ;;
-
-            [Ss]eptember)
-                monthIndex=8
-                break
-                ;;
-
-            [Oo]ctober)
-                monthIndex=9
-                break
-                ;;
-
-            [Nn]ovember)
-                monthIndex=10
-                break
-                ;;
-
-            [Dd]ecember)
-                monthIndex=11
-                break
-                ;;
-
-            *)
-                echo "Invalid month."
-                ;;
+            January)   monthIndex=0 ;;
+            February)  monthIndex=1 ;;
+            March)     monthIndex=2 ;;
+            April)     monthIndex=3 ;;
+            May)       monthIndex=4 ;;
+            June)      monthIndex=5 ;;
+            July)      monthIndex=6 ;;
+            August)    monthIndex=7 ;;
+            September) monthIndex=8 ;;
+            October)   monthIndex=9 ;;
+            November)  monthIndex=10 ;;
+            December)  monthIndex=11 ;;
 
         esac
+
+        break
 
     done
 
@@ -526,7 +551,20 @@ do
     while true
     do
 
-        read -r -p "Enter salesperson name: " salespersonName
+        salespersonName=$(
+            whiptail \
+                --title "Salesperson $personIndex - Name" \
+                --inputbox \
+                "Enter salesperson name:" \
+                10 60 \
+                "" \
+                3>&1 1>&2 2>&3
+        )
+
+
+        if [[ $? -ne 0 ]]; then
+            exit 0
+        fi
 
 
         if [[ "$salespersonName" =~ ^[A-Za-z][A-Za-z\ \'-]*$ ]]; then
@@ -536,41 +574,66 @@ do
         fi
 
 
-        echo "Invalid name. Please use letters, spaces, apostrophes or hyphens."
+        whiptail \
+            --title "Invalid Name" \
+            --msgbox \
+            "Invalid salesperson name.
+
+Use alphabetic characters, spaces,
+apostrophes or hyphens only." \
+            10 55
 
     done
 
 
     # --------------------------------------------------------
-    # Models Sold
+    # Model Selection
     # --------------------------------------------------------
 
     modelsSold=()
     modelCount=0
 
 
-    echo
-    echo "Available models:"
-    echo "  A class"
-    echo "  B class"
-    echo "  C class"
-    echo "  E class"
-    echo "  AMG C65"
-    echo
-    echo "Enter N when finished."
-
-
     while true
     do
 
-        read -r -p "Enter model sold: " modelInput
+        modelInput=$(
+            whiptail \
+                --title "$salespersonName - Models Sold" \
+                --menu \
+                "Select a model sold.
+
+Select 'Finished' when all models have been entered." \
+                18 65 6 \
+                "A class" "£31,095 average" \
+                "B class" "£33,162 average" \
+                "C class" "£42,537 average" \
+                "E class" "£54,437 average" \
+                "AMG C65" "£79,660 average" \
+                "FINISHED" "Finish model entry" \
+                3>&1 1>&2 2>&3
+        )
 
 
-        if [[ "$modelInput" =~ ^[Nn]$ ]]; then
+        if [[ $? -ne 0 ]]; then
+            exit 0
+        fi
+
+
+        # ----------------------------------------------------
+        # Finish model entry
+        # ----------------------------------------------------
+
+        if [[ "$modelInput" == "FINISHED" ]]; then
 
             if (( modelCount == 0 )); then
 
-                echo "At least one model must be entered."
+                whiptail \
+                    --title "No Models Entered" \
+                    --msgbox \
+                    "At least one model must be entered." \
+                    8 50
+
                 continue
 
             fi
@@ -580,43 +643,29 @@ do
         fi
 
 
-        case "$modelInput" in
+        # ----------------------------------------------------
+        # Store selected model
+        #
+        # A model can be selected repeatedly.
+        # This allows multiple cars of the same model.
+        # ----------------------------------------------------
 
-            [Aa]" "[Cc]lass)
-                modelsSold[$modelCount]="A class"
-                ;;
-
-            [Bb]" "[Cc]lass)
-                modelsSold[$modelCount]="B class"
-                ;;
-
-            [Cc]" "[Cc]lass)
-                modelsSold[$modelCount]="C class"
-                ;;
-
-            [Ee]" "[Cc]lass)
-                modelsSold[$modelCount]="E class"
-                ;;
-
-            [Aa][Mm][Gg]" "[Cc]65)
-                modelsSold[$modelCount]="AMG C65"
-                ;;
-
-            *)
-                echo "Invalid model."
-                continue
-                ;;
-
-        esac
-
+        modelsSold[$modelCount]="$modelInput"
 
         (( modelCount++ ))
+
+
+        whiptail \
+            --title "Model Added" \
+            --msgbox \
+            "$modelInput added to $salespersonName's sales." \
+            8 50
 
     done
 
 
     # --------------------------------------------------------
-    # Save this salesperson's monthly record
+    # Write salesperson's monthly record
     # --------------------------------------------------------
 
     writeRecord
@@ -625,21 +674,41 @@ done
 
 
 # ============================================================
-# Annual Salary Calculation
+# Calculate Annual Salaries
 # ============================================================
 
 calculateAnnualSalary
 
 
 # ============================================================
-# Bubble Sort
+# Bubble Sort Annual Salaries
 # ============================================================
 
 bubbleSortAnnual
 
 
 # ============================================================
-# Display Final Results
+# Display Annual Results
 # ============================================================
 
 displayAnnualSalary
+
+
+# ============================================================
+# Completion Message
+# ============================================================
+
+whiptail \
+    --title "Processing Complete" \
+    --msgbox \
+    "The salary calculations have been completed.
+
+Monthly records:
+$outputFile
+
+Annual records:
+$annualFile
+
+The annual records have been alphabetically
+bubble-sorted by salesperson name." \
+    12 65

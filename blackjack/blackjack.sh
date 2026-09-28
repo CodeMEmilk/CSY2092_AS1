@@ -1,7 +1,24 @@
 ```bash
-# ==========================================
+
+# ============================================================
+# BLACKJACK
+# ============================================================
+
+
+# ============================================================
+# Game Point Settings
+# ============================================================
+
+BASE_POINTS=10
+BLACKJACK_BONUS=5
+CHARLIE_BONUS=20
+
+playerScore=0
+
+
+# ============================================================
 # Array Declaration
-# ==========================================
+# ============================================================
 
 declare -a deck=(
     "A,A" "2,A" "3,A" "4,A" "5,A" "6,A" "7,A" "8,A" "9,A" "10,A" "J,A" "Q,A" "K,A"
@@ -15,12 +32,12 @@ declare -a playerHand
 declare -a dealerHand
 
 
-# ==========================================
+# ============================================================
 # Deal Card
-# ==========================================
+# ============================================================
 
-dealCard() {
-
+dealCard()
+{
     local drawnCardIndex
     local drawnCard
 
@@ -28,22 +45,22 @@ dealCard() {
 
     drawnCard="${tempDeck[$drawnCardIndex]}"
 
-    # Remove the card from the deck
+    # Remove dealt card from the deck
     unset 'tempDeck[drawnCardIndex]'
 
-    # Re-index the array after removing the card
+    # Re-index the array
     tempDeck=("${tempDeck[@]}")
 
     echo "$drawnCard"
 }
 
 
-# ==========================================
+# ============================================================
 # Get Card Point
-# ==========================================
+# ============================================================
 
-getCardPoint() {
-
+getCardPoint()
+{
     local card="$1"
     local currentPoint="$2"
 
@@ -57,7 +74,7 @@ getCardPoint() {
 
         A)
             # Ace is worth 11 if adding 11 does not
-            # make the current hand exceed 21.
+            # cause the current hand to exceed 21.
             if (( currentPoint + 11 <= 21 ))
             then
                 point=11
@@ -108,12 +125,12 @@ getCardPoint() {
 }
 
 
-# ==========================================
+# ============================================================
 # Calculate Hand Total
-# ==========================================
+# ============================================================
 
-calculateHandTotal() {
-
+calculateHandTotal()
+{
     local total=0
     local card
     local point
@@ -121,19 +138,20 @@ calculateHandTotal() {
     for card in "$@"
     do
         point=$(getCardPoint "$card" "$total")
-        ((total += point))
+
+        (( total += point ))
     done
 
     echo "$total"
 }
 
 
-# ==========================================
-# Blackjack Check
-# ==========================================
+# ============================================================
+# Check Blackjack
+# ============================================================
 
-blackJackCheck() {
-
+blackJackCheck()
+{
     local firstCard="$1"
     local secondCard="$2"
 
@@ -161,12 +179,12 @@ blackJackCheck() {
 }
 
 
-# ==========================================
+# ============================================================
 # Blackjack Outcome
-# ==========================================
+# ============================================================
 
-blackJackOutcome() {
-
+blackJackOutcome()
+{
     local dealerBlackJack="$1"
     local playerBlackJack="$2"
 
@@ -191,12 +209,12 @@ blackJackOutcome() {
 }
 
 
-# ==========================================
+# ============================================================
 # Compare Points
-# ==========================================
+# ============================================================
 
-comparePoints() {
-
+comparePoints()
+{
     local playerPoint="$1"
     local dealerPoint="$2"
 
@@ -222,26 +240,89 @@ comparePoints() {
 }
 
 
-# ==========================================
-# Main Game
-# ==========================================
+# ============================================================
+# Update Player Score
+# ============================================================
+
+updateScore()
+{
+    local outcome="$1"
+
+    case "$outcome" in
+
+        win)
+            (( playerScore += BASE_POINTS ))
+            echo "You gained $BASE_POINTS points."
+            ;;
+
+        blackjack)
+            (( playerScore += BASE_POINTS + BLACKJACK_BONUS ))
+
+            echo "Blackjack bonus: +$BLACKJACK_BONUS points."
+            echo "You gained $((BASE_POINTS + BLACKJACK_BONUS)) points."
+            ;;
+
+        charlie)
+            (( playerScore += BASE_POINTS + CHARLIE_BONUS ))
+
+            echo "Five Card Charlie bonus: +$CHARLIE_BONUS points."
+            echo "You gained $((BASE_POINTS + CHARLIE_BONUS)) points."
+            ;;
+
+        loss)
+            (( playerScore -= BASE_POINTS ))
+
+            echo "You lost $BASE_POINTS points."
+            ;;
+
+        push)
+            echo "Push - no points gained or lost."
+            ;;
+
+    esac
+}
+
+
+# ============================================================
+# Check Five Card Charlie
+# ============================================================
+
+checkCharlie()
+{
+    local handSize="$1"
+    local handPoint="$2"
+
+    if (( handSize == 5 && handPoint <= 21 ))
+    then
+        return 0
+    else
+        return 1
+    fi
+}
+
+
+# ============================================================
+# Main Game Loop
+# ============================================================
 
 gameloop="true"
 
 while [[ "$gameloop" == "true" ]]
 do
 
-    # Reset the deck
+    # ========================================================
+    # Reset Deck and Hands
+    # ========================================================
+
     tempDeck=("${deck[@]}")
 
-    # Reset the hands
     playerHand=()
     dealerHand=()
 
 
-    # ======================================
+    # ========================================================
     # Initial Deal
-    # ======================================
+    # ========================================================
 
     dealerHand+=("$(dealCard)")
     dealerHand+=("$(dealCard)")
@@ -250,9 +331,9 @@ do
     playerHand+=("$(dealCard)")
 
 
-    # ======================================
-    # Check for Blackjack
-    # ======================================
+    # ========================================================
+    # Blackjack Check
+    # ========================================================
 
     dealerBlackJack=$(blackJackCheck \
         "${dealerHand[0]}" \
@@ -268,23 +349,29 @@ do
         "$playerBlackJack")
 
 
-    # ======================================
-    # Display Initial Hands
-    # ======================================
+    # ========================================================
+    # Initial Display
+    # ========================================================
 
     echo
-    echo "================================"
-    echo "          BLACKJACK"
-    echo "================================"
+    echo "========================================"
+    echo "              BLACKJACK"
+    echo "========================================"
 
     echo
+    echo "Current Points: $playerScore"
+    echo
+
     echo "Dealer: [Hidden] ${dealerHand[1]}"
     echo "Player: ${playerHand[*]}"
 
+    echo
+    echo "Cards remaining: ${#tempDeck[@]}"
 
-    # ======================================
-    # Immediate Blackjack Outcome
-    # ======================================
+
+    # ========================================================
+    # Immediate Blackjack Outcomes
+    # ========================================================
 
     if [[ "$outcome" == "dealer" ]]
     then
@@ -293,12 +380,22 @@ do
         echo "Dealer has Blackjack!"
         echo "Player loses."
 
+        updateScore "loss"
+
+
     elif [[ "$outcome" == "player" ]]
     then
 
         echo
+        echo "========================================"
+        echo "          NATURAL BLACKJACK!"
+        echo "========================================"
+
         echo "Player has Blackjack!"
         echo "Player wins!"
+
+        updateScore "blackjack"
+
 
     elif [[ "$outcome" == "push" ]]
     then
@@ -307,13 +404,17 @@ do
         echo "Both player and dealer have Blackjack."
         echo "Push - bet returned."
 
+        updateScore "push"
+
+
     else
 
-        # ==================================
+        # ====================================================
         # PLAYER TURN
-        # ==================================
+        # ====================================================
 
         stand="false"
+        charlie="false"
 
         while [[ "$stand" == "false" ]]
         do
@@ -321,35 +422,78 @@ do
             playerPoint=$(calculateHandTotal "${playerHand[@]}")
 
             echo
+            echo "----------------------------------------"
             echo "Player hand: ${playerHand[*]}"
             echo "Player total: $playerPoint"
+            echo "Current points: $playerScore"
+            echo "----------------------------------------"
 
 
-            # Player has busted
+            # ------------------------------------------------
+            # Player Bust
+            # ------------------------------------------------
+
             if (( playerPoint > 21 ))
             then
+                echo
                 echo "Player busts!"
                 break
             fi
 
+
+            # ------------------------------------------------
+            # Five Card Charlie
+            # ------------------------------------------------
+
+            if checkCharlie "${#playerHand[@]}" "$playerPoint"
+            then
+                echo
+                echo "========================================"
+                echo "       FIVE CARD CHARLIE!"
+                echo "========================================"
+
+                echo "Player reached five cards without busting."
+                echo "Player automatically wins!"
+
+                charlie="true"
+                stand="true"
+
+                break
+            fi
+
+
+            # ------------------------------------------------
+            # Player Choice
+            # ------------------------------------------------
 
             read -rp "Stand or Hit? " choice
 
 
             case "${choice,,}" in
 
-                stand)
+                stand|s)
+
                     echo "Player stands."
                     stand="true"
                     ;;
 
-                hit)
+
+                hit|h)
+
                     echo "Player hits."
+
                     playerHand+=("$(dealCard)")
+
+                    echo "Card dealt: ${playerHand[-1]}"
+
                     ;;
 
+
                 *)
-                    echo "Please enter Stand or Hit."
+
+                    echo "Invalid choice."
+                    echo "Please enter H/Hit or S/Stand."
+
                     ;;
 
             esac
@@ -357,77 +501,171 @@ do
         done
 
 
-        # ==================================
-        # DEALER TURN
-        # ==================================
+        # ====================================================
+        # Five Card Charlie Outcome
+        # ====================================================
 
-        playerPoint=$(calculateHandTotal "${playerHand[@]}")
-
-
-        if (( playerPoint <= 21 ))
+        if [[ "$charlie" == "true" ]]
         then
 
-            echo
-            echo "Dealer reveals: ${dealerHand[*]}"
+            updateScore "charlie"
 
-            dealerPoint=$(calculateHandTotal "${dealerHand[@]}")
-
-
-            # Dealer must hit below 17
-            while (( dealerPoint < 17 ))
-            do
-
-                echo "Dealer hits."
-
-                dealerHand+=("$(dealCard)")
-
-                dealerPoint=$(calculateHandTotal "${dealerHand[@]}")
-
-            done
-
-
-            echo
-            echo "Dealer hand: ${dealerHand[*]}"
-            echo "Dealer total: $dealerPoint"
-
-
-            # ==================================
-            # Compare Final Scores
-            # ==================================
-
-            outcome=$(comparePoints \
-                "$playerPoint" \
-                "$dealerPoint")
-
-
-            case "$outcome" in
-
-                player)
-                    echo "Player wins!"
-                    ;;
-
-                dealer)
-                    echo "Dealer wins."
-                    ;;
-
-                push)
-                    echo "Push - bet returned."
-                    ;;
-
-            esac
 
         else
 
-            echo "Dealer wins because player busted."
+            # =================================================
+            # Calculate Player Total After Player Turn
+            # =================================================
+
+            playerPoint=$(calculateHandTotal "${playerHand[@]}")
+
+
+            # =================================================
+            # Player Bust
+            # =================================================
+
+            if (( playerPoint > 21 ))
+            then
+
+                echo
+                echo "Dealer wins because the player busted."
+
+                updateScore "loss"
+
+
+            else
+
+                # =============================================
+                # DEALER TURN
+                # =============================================
+
+                echo
+                echo "========================================"
+                echo "             DEALER TURN"
+                echo "========================================"
+
+                echo
+                echo "Dealer reveals: ${dealerHand[*]}"
+
+                dealerPoint=$(calculateHandTotal "${dealerHand[@]}")
+
+                echo "Dealer total: $dealerPoint"
+
+
+                # =============================================
+                # Dealer Hits Until 17
+                # =============================================
+
+                while (( dealerPoint < 17 ))
+                do
+
+                    echo
+                    echo "Dealer hits."
+
+                    dealerHand+=("$(dealCard)")
+
+                    dealerPoint=$(calculateHandTotal \
+                        "${dealerHand[@]}")
+
+                    echo "Dealer drew: ${dealerHand[-1]}"
+                    echo "Dealer total: $dealerPoint"
+
+                done
+
+
+                # =============================================
+                # Dealer Bust
+                # =============================================
+
+                if (( dealerPoint > 21 ))
+                then
+
+                    echo
+                    echo "Dealer busts!"
+                    echo "Player wins!"
+
+                    updateScore "win"
+
+
+                else
+
+                    # =========================================
+                    # Final Comparison
+                    # =========================================
+
+                    echo
+                    echo "========================================"
+                    echo "           FINAL RESULT"
+                    echo "========================================"
+
+                    echo
+                    echo "Player hand: ${playerHand[*]}"
+                    echo "Player total: $playerPoint"
+
+                    echo
+                    echo "Dealer hand: ${dealerHand[*]}"
+                    echo "Dealer total: $dealerPoint"
+
+
+                    outcome=$(comparePoints \
+                        "$playerPoint" \
+                        "$dealerPoint")
+
+
+                    case "$outcome" in
+
+                        player)
+
+                            echo
+                            echo "Player wins!"
+
+                            updateScore "win"
+                            ;;
+
+
+                        dealer)
+
+                            echo
+                            echo "Dealer wins."
+
+                            updateScore "loss"
+                            ;;
+
+
+                        push)
+
+                            echo
+                            echo "Push - both hands have the same value."
+
+                            updateScore "push"
+                            ;;
+
+                    esac
+
+                fi
+
+            fi
 
         fi
 
     fi
 
 
-    # ======================================
-    # New Game
-    # ======================================
+    # ========================================================
+    # Round Summary
+    # ========================================================
+
+    echo
+    echo "========================================"
+    echo "            ROUND SUMMARY"
+    echo "========================================"
+
+    echo "Player points: $playerScore"
+
+
+    # ========================================================
+    # Continue Game
+    # ========================================================
 
     echo
 
@@ -440,6 +678,29 @@ do
 
 done
 
+
+# ============================================================
+# Final Score
+# ============================================================
+
+echo
+echo "========================================"
+echo "             GAME OVER"
+echo "========================================"
+
+echo "Final Player Score: $playerScore points"
+
+if (( playerScore > 0 ))
+then
+    echo "Overall result: Positive score."
+
+elif (( playerScore < 0 ))
+then
+    echo "Overall result: Negative score."
+
+else
+    echo "Overall result: Even score."
+fi
 
 echo
 echo "Thanks for playing Blackjack!"

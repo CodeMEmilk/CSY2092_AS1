@@ -1,4 +1,3 @@
-```bash
 # ============================================================
 # Area of a Rectangle
 # Uses whiptail for user interaction
@@ -7,82 +6,53 @@
 # ------------------------------------------------------------
 # Global variable declaration
 # ------------------------------------------------------------
-
-# "cm" for centimeter, "in" for inch
-inputFlag="cm"
-
-# "m2" for meter square, "in2" for inch square
-outputFlag="m2"
-
-breakFlag="false"
-
+inputFlag="cm"     # "cm" or "in"
+outputFlag="m2"    # "m2" or "in2"
 length=0
 breadth=0
+area=0
+unit=""
 
 
 # ------------------------------------------------------------
 # Function: inputPrompt
 # Prompts user to select input unit and enter dimensions
+# Returns: 0 = OK, 1 = invalid selection, 2 = cancel/esc
 # ------------------------------------------------------------
-
 inputPrompt(){
 
     local choice
-    local inputData
 
+    # --- Choose input unit ---
     choice=$(whiptail --title "Input Unit" \
         --menu "Choose the unit for your rectangle dimensions:" \
         12 60 2 \
         "cm" "Centimeters" \
         "in" "Inches" \
-        3>&1 1>&2 2>&3)
+        3>&1 1>&2 2>&3 </dev/tty)
+    [[ $? -ne 0 ]] && return 2
 
-    # User pressed Cancel or Esc
-    if [[ $? -ne 0 ]]; then
-        return 2
-    fi
+    case "$choice" in
+        cm|in) inputFlag="$choice" ;;
+        *)     return 1 ;;
+    esac
 
-    if [[ "$choice" == "in" ]]; then
-        inputFlag="in"
-
-    elif [[ "$choice" == "cm" ]]; then
-        inputFlag="cm"
-
-    else
-        return 1
-    fi
-
-
-    # --------------------------------------------------------
-    # Get length
-    # --------------------------------------------------------
+    # --- Length ---
+    local unitName
+    [[ "$inputFlag" == "cm" ]] && unitName="centimeters" || unitName="inches"
 
     length=$(whiptail --title "Rectangle Dimensions" \
-        --inputbox "Enter the length in $(
-            [[ "$inputFlag" == "cm" ]] && echo "centimeters" || echo "inches"
-        ):" \
+        --inputbox "Enter the length in $unitName:" \
         10 60 \
-        3>&1 1>&2 2>&3)
+        3>&1 1>&2 2>&3 </dev/tty)
+    [[ $? -ne 0 ]] && return 2
 
-    if [[ $? -ne 0 ]]; then
-        return 2
-    fi
-
-
-    # --------------------------------------------------------
-    # Get breadth
-    # --------------------------------------------------------
-
+    # --- Breadth ---
     breadth=$(whiptail --title "Rectangle Dimensions" \
-        --inputbox "Enter the breadth in $(
-            [[ "$inputFlag" == "cm" ]] && echo "centimeters" || echo "inches"
-        ):" \
+        --inputbox "Enter the breadth in $unitName:" \
         10 60 \
-        3>&1 1>&2 2>&3)
-
-    if [[ $? -ne 0 ]]; then
-        return 2
-    fi
+        3>&1 1>&2 2>&3 </dev/tty)
+    [[ $? -ne 0 ]] && return 2
 
     return 0
 }
@@ -91,25 +61,13 @@ inputPrompt(){
 # ------------------------------------------------------------
 # Function: validation
 # Validates length and breadth using regular expressions
+# Returns: 0 = valid, 1 = invalid
 # ------------------------------------------------------------
-
 validation(){
 
-    # Check that both values are valid positive numbers.
-    #
-    # Accepted:
-    #   12
-    #   12.5
-    #   3.142
-    #
-    # Rejected:
-    #   abc
-    #   -12
-    #   12.5.6
-    #   .5
-
-    if [[ ! "$length" =~ ^[0-9]+([.][0-9]+)?$ ||
-          ! "$breadth" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    # Accepts: 12, 12.5, 3.142  |  Rejects: abc, -12, 12.5.6, .5
+    if [[ ! "$length"    =~ ^[0-9]+([.][0-9]+)?$ ||
+          ! "$breadth"   =~ ^[0-9]+([.][0-9]+)?$ ]]; then
 
         whiptail --title "Invalid Input" \
             --msgbox \
@@ -121,24 +79,17 @@ Examples:
 3.142
 
 Letters, negative numbers and incorrectly formatted decimals are not allowed." \
-            14 65
-
+            14 65 </dev/tty
         return 1
     fi
 
-
-    # --------------------------------------------------------
-    # Check that values are greater than zero
-    # --------------------------------------------------------
-
-    if [[ $(echo "$length > 0" | bc -l) -ne 1 ||
+    # Must be greater than zero
+    if [[ $(echo "$length > 0"  | bc -l) -ne 1 ||
           $(echo "$breadth > 0" | bc -l) -ne 1 ]]; then
 
         whiptail --title "Invalid Input" \
-            --msgbox \
-            "Length and breadth must be greater than zero." \
-            10 55
-
+            --msgbox "Length and breadth must be greater than zero." \
+            10 55 </dev/tty
         return 1
     fi
 
@@ -149,61 +100,38 @@ Letters, negative numbers and incorrectly formatted decimals are not allowed." \
 # ------------------------------------------------------------
 # Function: conversion
 # Calculates and converts the area
+# Args: $1 = input unit, $2 = output unit
+# Echoes the converted area, or returns 1 on bad combination
 # ------------------------------------------------------------
-
 conversion(){
 
-    local inputFlag="$1"
-    local outputFlag="$2"
+    local inUnit="$1"
+    local outUnit="$2"
+    local mult
 
-    # Calculate area using bc because Bash arithmetic
-    # does not support floating-point numbers.
+    # Bash arithmetic can't do floats — use bc
     mult=$(echo "scale=10; $length * $breadth" | bc -l)
 
-
-    if [[ "$inputFlag" == "cm" && "$outputFlag" == "m2" ]]; then
-
-        # cm² -> m²
-        echo "scale=4; $mult / 10000" | bc -l
-
-
-    elif [[ "$inputFlag" == "cm" && "$outputFlag" == "in2" ]]; then
-
-        # cm² -> in²
-        # 1 cm² = 0.15500031 in²
-        echo "scale=4; $mult * 0.15500031" | bc -l
-
-
-    elif [[ "$inputFlag" == "in" && "$outputFlag" == "m2" ]]; then
-
-        # in² -> m²
-        # 1 in² = 0.00064516 m²
-        echo "scale=4; $mult * 0.00064516" | bc -l
-
-
-    elif [[ "$inputFlag" == "in" && "$outputFlag" == "in2" ]]; then
-
-        # in² -> in²
-        echo "scale=4; $mult" | bc -l
-
-
-    else
-
-        whiptail --title "Conversion Error" \
-            --msgbox "An error occurred while converting the area." \
-            10 55
-
-        return 1
-
-    fi
+    case "$inUnit:$outUnit" in
+        cm:m2)   echo "scale=4; $mult / 10000"          | bc -l ;;
+        cm:in2)  echo "scale=4; $mult * 0.15500031"     | bc -l ;;
+        in:m2)   echo "scale=4; $mult * 0.00064516"     | bc -l ;;
+        in:in2)  echo "scale=4; $mult"                  | bc -l ;;
+        *)
+            whiptail --title "Conversion Error" \
+                --msgbox "An error occurred while converting the area." \
+                10 55 </dev/tty
+            return 1
+            ;;
+    esac
 }
 
 
 # ------------------------------------------------------------
 # Function: promptOutput
 # Prompts user to select desired output unit
+# Returns: 0 = OK, 1 = invalid, 2 = cancel/esc
 # ------------------------------------------------------------
-
 promptOutput(){
 
     local output
@@ -213,30 +141,14 @@ promptOutput(){
         12 65 2 \
         "m" "Square metres (m²)" \
         "i" "Square inches (in²)" \
-        3>&1 1>&2 2>&3)
+        3>&1 1>&2 2>&3 </dev/tty)
+    [[ $? -ne 0 ]] && return 2
 
-    # User pressed Cancel or Esc
-    if [[ $? -ne 0 ]]; then
-        return 2
-    fi
-
-
-    if [[ "$output" =~ ^[mM]$ ]]; then
-
-        outputFlag="m2"
-
-    elif [[ "$output" =~ ^[iI]$ ]]; then
-
-        outputFlag="in2"
-
-    else
-
-        whiptail --title "Invalid Output" \
-            --msgbox "Invalid output selection." \
-            8 50
-
-        return 1
-    fi
+    case "$output" in
+        m|M) outputFlag="m2"  ;;
+        i|I) outputFlag="in2" ;;
+        *)   return 1 ;;
+    esac
 
     return 0
 }
@@ -244,103 +156,35 @@ promptOutput(){
 
 # ------------------------------------------------------------
 # Function: restart
-# Gives user option to restart or quit
+# Returns 0 to restart, 1 to quit
 # ------------------------------------------------------------
-
 restart(){
-
-    if whiptail --title "Calculate Another Area?" \
-        --yesno \
-        "Would you like to enter different dimensions?" \
-        10 60
-    then
-
-        breakFlag="false"
-        return 0
-
-    else
-
-        breakFlag="true"
-        return 0
-
-    fi
+    whiptail --title "Calculate Another Area?" \
+        --yesno "Would you like to enter different dimensions?" \
+        10 60 </dev/tty
 }
 
 
 # ------------------------------------------------------------
 # Main Program Loop
 # ------------------------------------------------------------
-
-while [[ "$breakFlag" != "true" ]]
+while true
 do
-
-    # --------------------------------------------------------
-    # Get input unit and dimensions
-    # --------------------------------------------------------
-
     inputPrompt
-
     inputStatus=$?
+    [[ $inputStatus -eq 2 ]] && break          # cancel/esc = exit
+    [[ $inputStatus -ne 0 ]] && continue       # bad selection
 
-    # Cancel/Esc = exit program
-    if [[ $inputStatus -eq 2 ]]; then
-        break
-    fi
-
-    # Something went wrong with input selection
-    if [[ $inputStatus -ne 0 ]]; then
-        continue
-    fi
-
-
-    # --------------------------------------------------------
-    # Validate numerical input
-    # --------------------------------------------------------
-
-    if ! validation; then
-        continue
-    fi
-
-
-    # --------------------------------------------------------
-    # Select output unit
-    # --------------------------------------------------------
+    validation || continue
 
     promptOutput
-
     outputStatus=$?
+    [[ $outputStatus -eq 2 ]] && break
+    [[ $outputStatus -ne 0 ]] && continue
 
-    # Cancel/Esc = exit program
-    if [[ $outputStatus -eq 2 ]]; then
-        break
-    fi
+    area=$(conversion "$inputFlag" "$outputFlag") || continue
 
-    if [[ $outputStatus -ne 0 ]]; then
-        continue
-    fi
-
-
-    # --------------------------------------------------------
-    # Calculate area
-    # --------------------------------------------------------
-
-    area=$(conversion "$inputFlag" "$outputFlag")
-
-
-    # --------------------------------------------------------
-    # Display result
-    # --------------------------------------------------------
-
-    if [[ "$outputFlag" == "m2" ]]; then
-
-        unit="m²"
-
-    else
-
-        unit="in²"
-
-    fi
-
+    [[ "$outputFlag" == "m2" ]] && unit="m²" || unit="in²"
 
     whiptail --title "Rectangle Area" \
         --msgbox \
@@ -348,25 +192,17 @@ do
 Breadth: $breadth $inputFlag
 
 Area:    $area $unit" \
-        12 55
+        12 55 </dev/tty
 
-
-    # --------------------------------------------------------
-    # Restart or quit
-    # --------------------------------------------------------
-
-    restart
-
+    restart || break
 done
 
 
 # ------------------------------------------------------------
 # Exit message
 # ------------------------------------------------------------
-
 whiptail --title "Area Calculator" \
     --msgbox "Thank you for using the Rectangle Area Calculator." \
-    8 55
+    8 55 </dev/tty
 
 exit 0
-```

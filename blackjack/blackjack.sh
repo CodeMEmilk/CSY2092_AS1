@@ -1,10 +1,16 @@
-#!/bin/bash
 # ============================================================
-# BLACKJACK (Whiptail Edition)
+# Program: Blackjack (Whiptail Edition)
+# Description:
+#   Runs a text-based Blackjack game using Whiptail dialogs.
+#   The player and dealer draw from a standard 52-card deck;
+#   the script checks natural Blackjack, busts, and Five Card
+#   Charlie, compares hands, updates the player's score, and
+#   allows additional rounds until the player exits.
+# Requirements: Bash and whiptail.
 # ============================================================
 
 # ============================================================
-# Game Point Settings
+# Global Variables: scoring settings, score state, and dialog sizes
 # ============================================================
 
 BASE_POINTS=10
@@ -22,7 +28,7 @@ MSG_WIDTH=55
 
 
 # ============================================================
-# Array Declaration
+# Global Arrays: full deck, remaining deck, and each hand
 # ============================================================
 
 declare -a deck=(
@@ -38,15 +44,17 @@ declare -a dealerHand
 
 
 # ============================================================
-# Whiptail Helper Functions
+# Functions: dialog helpers and hand formatting
 # ============================================================
 
+# Display a message in a modal Whiptail dialog.
 showMessage() {
     local title="$1"
     local message="$2"
     whiptail --title "$title" --msgbox "$message" $MSG_HEIGHT $MSG_WIDTH
 }
 
+# Display a temporary information message.
 showInfo() {
     local title="$1"
     local message="$2"
@@ -54,12 +62,14 @@ showInfo() {
     sleep 1.5
 }
 
+# Ask a yes/no question; the Whiptail exit status indicates the answer.
 askYesNo() {
     local title="$1"
     local message="$2"
     whiptail --title "$title" --yesno "$message" $MSG_HEIGHT $MSG_WIDTH
 }
 
+# Format a list of cards as a readable hand string.
 formatHand() {
     local -a hand=("$@")
     local result=""
@@ -71,14 +81,17 @@ formatHand() {
 
 
 # ============================================================
-# Deal Card
+# Function: deal a card
 # ============================================================
 
+# Select a random card from tempDeck, remove it, and return it.
 dealCard()
 {
     local drawnCardIndex
     local drawnCard
 
+    # Choose a random index, remove that card, then re-pack the array
+    # so later random selections use only cards still in the deck.
     drawnCardIndex=$((RANDOM % ${#tempDeck[@]}))
 
     drawnCard="${tempDeck[$drawnCardIndex]}"
@@ -91,9 +104,10 @@ dealCard()
 
 
 # ============================================================
-# Get Card Point
+# Function: calculate an individual card value
 # ============================================================
 
+# Return a card value, choosing Ace as 11 only when it does not exceed 21.
 getCardPoint()
 {
     local card="$1"
@@ -103,6 +117,7 @@ getCardPoint()
     local suit
     local point=0
 
+    # Split the stored "rank,suit" representation; only rank affects points.
     IFS=',' read -r rank suit <<< "$card"
 
     case "$rank" in
@@ -133,15 +148,17 @@ getCardPoint()
 
 
 # ============================================================
-# Calculate Hand Total
+# Function: calculate a hand total
 # ============================================================
 
+# Sum the values of all supplied cards, adjusting Aces as the total grows.
 calculateHandTotal()
 {
     local total=0
     local card
     local point
 
+    # Pass the running total when valuing each card so an Ace can be 1 or 11.
     for card in "$@"
     do
         point=$(getCardPoint "$card" "$total")
@@ -153,9 +170,10 @@ calculateHandTotal()
 
 
 # ============================================================
-# Check Blackjack
+# Function: check for natural Blackjack
 # ============================================================
 
+# Return true for a two-card Ace plus 10-value-card Blackjack.
 blackJackCheck()
 {
     local firstCard="$1"
@@ -182,9 +200,10 @@ blackJackCheck()
 
 
 # ============================================================
-# Blackjack Outcome
+# Function: resolve immediate Blackjack outcomes
 # ============================================================
 
+# Resolve initial natural Blackjacks as player, dealer, push, or continue.
 blackJackOutcome()
 {
     local dealerBlackJack="$1"
@@ -206,9 +225,10 @@ blackJackOutcome()
 
 
 # ============================================================
-# Compare Points
+# Function: compare hand totals
 # ============================================================
 
+# Compare final hand totals and return player, dealer, or push.
 comparePoints()
 {
     local playerPoint="$1"
@@ -233,13 +253,14 @@ comparePoints()
 
 
 # ============================================================
-# Update Player Score
+# Function: update the player's score
 # ============================================================
 # NOTE: This function MUTATES the global playerScore and sets
 # the global scoreMessage. It MUST be called directly (not via
 # command substitution) so the changes persist in the parent
 # shell. The caller reads $scoreMessage afterwards.
 
+# Update global playerScore and scoreMessage for the supplied outcome.
 updateScore()
 {
     local outcome="$1"
@@ -277,9 +298,10 @@ updateScore()
 
 
 # ============================================================
-# Check Five Card Charlie
+# Function: check the Five Card Charlie condition
 # ============================================================
 
+# Return success when the player has five cards totaling 21 or less.
 checkCharlie()
 {
     local handSize="$1"
@@ -295,9 +317,10 @@ checkCharlie()
 
 
 # ============================================================
-# Build Game State Display
+# Function: build the game-state display text
 # ============================================================
 
+# Build a formatted summary of the score, deck, hands, and optional message.
 buildGameState()
 {
     local showDealer="$1"
@@ -338,7 +361,7 @@ buildGameState()
 
 
 # ============================================================
-# Main Game Loop
+# Main Program: play rounds, resolve outcomes, and handle replay
 # ============================================================
 
 gameloop="true"
@@ -350,6 +373,7 @@ do
 
     # ========================================================
     # Reset Deck and Hands
+    # Each round starts with a fresh copy of the full deck and empty hands.
     # ========================================================
 
     tempDeck=("${deck[@]}")
@@ -370,6 +394,7 @@ do
 
     # ========================================================
     # Blackjack Check
+    # Resolve natural Blackjack before allowing the player to hit or stand.
     # ========================================================
 
     dealerBlackJack=$(blackJackCheck "${dealerHand[0]}" "${dealerHand[1]}")
@@ -490,7 +515,7 @@ do
                 "Stand" "Keep your current hand" \
                 3>&1 1>&2 2>&3)
 
-            # Handle ESC/Cancel — default to Stand
+            # Treat Esc/Cancel as Stand so the round can continue safely.
             if [[ $? -ne 0 ]]
             then
                 choice="Stand"
@@ -559,6 +584,7 @@ do
 
             # =============================================
             # Dealer Hits Until 17
+            # The dealer draws repeatedly while the total is below 17.
             # =============================================
 
             while (( dealerPoint < 17 ))
@@ -601,6 +627,7 @@ do
 
                 # =========================================
                 # Final Comparison
+            # Only compare totals here if the dealer has not busted.
                 # =========================================
 
                 finalMsg="FINAL RESULT\n\n"
@@ -656,6 +683,7 @@ done
 
 # ============================================================
 # Final Score
+# Display the accumulated score and classify it as positive, negative, or even.
 # ============================================================
 
 finalMsg="GAME OVER\n\n"

@@ -1,9 +1,16 @@
-# ============================================================
-# Whiptail Interface
+# Bonus Script
+# -----------------------------
+# Records each salesperson's car sales for all 12 months, calculates monthly
+# bonuses and salaries, and saves monthly records to Outputs.txt. It then
+# totals each salesperson's annual gross salary, estimates annual net salary
+# using the tax bands below, sorts the annual results by name, and displays
+# them. The program uses Whiptail for interactive input and output.
+#
+# Requirements: Bash with associative-array support and whiptail.
 # ============================================================
 
 # ------------------------------------------------------------
-# Variable and Array Declaration
+# GLOBAL VARIABLES, CONSTANTS, AND ARRAYS
 # ------------------------------------------------------------
 
 outputFile="Outputs.txt"
@@ -11,6 +18,7 @@ annualFile="AnnualOutputs.txt"
 
 basicSalary=2000
 
+# Single source of truth for model prices.
 declare -A models=(
     ["A class"]=31095
     ["B class"]=33162
@@ -19,102 +27,63 @@ declare -A models=(
     ["AMG C65"]=79660
 )
 
-declare -a months=(
-    "January"
-    "February"
-    "March"
-    "April"
-    "May"
-    "June"
-    "July"
-    "August"
-    "September"
-    "October"
-    "November"
-    "December"
+# Ordered list of model names (parallel to the form fields).
+declare -a modelNames=(
+    "A class"
+    "B class"
+    "C class"
+    "E class"
+    "AMG C65"
 )
 
-# Stores all salesperson names for the year.
+declare -a months=(
+    "January" "February" "March" "April" "May" "June"
+    "July" "August" "September" "October" "November" "December"
+)
+
 declare -a salespersonNames
-
-# Stores models sold by the currently selected salesperson.
-declare -a modelsSold
-
+declare -a modelsSold        # one entry per unit sold
 salespersonName=""
 monthIndex=0
-modelCount=0
-
 
 # ============================================================
-# Whiptail Availability Check
+# DEPENDENCY CHECK
 # ============================================================
 
 if ! command -v whiptail >/dev/null 2>&1; then
     echo "Error: Whiptail is not installed."
-    echo "Install it using:"
-    echo "sudo apt install whiptail"
+    echo "Install it using:  sudo apt install whiptail"
     exit 1
 fi
 
-
 # ============================================================
-# Welcome Message
-# ============================================================
-
-whiptail \
-    --title "Salesperson Salary System" \
-    --msgbox \
-    "Welcome to the Car Salesperson Salary System." \
-    10 60
-
-
-# ============================================================
-# Function: Select Month
+# WELCOME MESSAGE
 # ============================================================
 
-selectMonth(){
+whiptail --title "Salesperson Salary System" \
+         --msgbox "Welcome to the Car Salesperson Salary System." \
+         10 60
 
-    local selectedMonth
+# ============================================================
+# FUNCTIONS: INPUT AND MONTHLY SALES
+# ============================================================
+# Helper: join array elements with a delimiter
+# ============================================================
 
-    selectedMonth=$(
-        whiptail \
-            --title "Month Selection" \
-            --menu "Select the month:" \
-            18 45 12 \
-            1 "January" \
-            2 "February" \
-            3 "March" \
-            4 "April" \
-            5 "May" \
-            6 "June" \
-            7 "July" \
-            8 "August" \
-            9 "September" \
-            10 "October" \
-            11 "November" \
-            12 "December" \
-            --nocancel \
-            3>&1 1>&2 2>&3
-    )
-
-    if [[ -z "$selectedMonth" ]]; then
-        return 1
-    fi
-
-    monthIndex=$((selectedMonth - 1))
-
-    return 0
+# Join array elements using the supplied delimiter.
+joinBy() {
+    local IFS="$1"
+    shift
+    echo "$*"
 }
-
 
 # ============================================================
 # Function: Enter Salesperson Names
 # ============================================================
 
-enterSalespersonNames(){
-
-    local salespersonIndex
-    local enteredName
+# Prompt for each salesperson's name and repeat until it passes validation.
+enterSalespersonNames() {
+    local salespersonIndex enteredName
 
     salespersonNames=()
 
@@ -123,496 +92,323 @@ enterSalespersonNames(){
            salespersonIndex++ )); do
 
         while true; do
-
             enteredName=$(
-                whiptail \
-                    --title "Salesperson Setup" \
-                    --inputbox \
-                    "Enter name for salesperson $((salespersonIndex + 1)) of $salespersonCount:" \
-                    10 60 \
-                    "" \
-                    --nocancel \
-                    3>&1 1>&2 2>&3
+                whiptail --title "Salesperson Setup" \
+                         --inputbox \
+                         "Enter name for salesperson $((salespersonIndex + 1)) of $salespersonCount:" \
+                         10 60 "" \
+                         --nocancel \
+                         3>&1 1>&2 2>&3
             )
 
-            # ------------------------------------------------
-            # Name validation
-            # ------------------------------------------------
+                    # Trim leading and trailing whitespace before checking the name.
+            enteredName="${enteredName#"${enteredName%%[![:space:]]*}"}"
+            enteredName="${enteredName%"${enteredName##*[![:space:]]}"}"
 
-            if [[ "$enteredName" =~ ^[A-Za-z][A-Za-z\ ]*$ ]]; then
-
-                # Remove accidental leading/trailing spaces.
-                enteredName="${enteredName#"${enteredName%%[![:space:]]*}"}"
-                enteredName="${enteredName%"${enteredName##*[![:space:]]}"}"
-
-                if [[ -n "$enteredName" ]]; then
-                    break
-                fi
+            if [[ "$enteredName" =~ ^[A-Za-z][A-Za-z\ ]*$ && -n "$enteredName" ]]; then
+                break
             fi
 
-            whiptail \
-                --title "Invalid Name" \
-                --msgbox \
-                "Please enter a valid salesperson name.\n\n\
-Only alphabetic characters and spaces are allowed." \
-                10 60
-
+            whiptail --title "Invalid Name" \
+                     --msgbox \
+                     "Please enter a valid salesperson name.\n\nOnly alphabetic characters and spaces are allowed." \
+                     10 60
         done
 
         salespersonNames+=("$enteredName")
-
     done
 }
-
 
 # ============================================================
 # Function: Show Salesperson List
 # ============================================================
 
-displaySalespersonList(){
-
-    local displayText=""
-    local salespersonIndex
-
-    for (( salespersonIndex=0;
-           salespersonIndex<${#salespersonNames[@]};
-           salespersonIndex++ )); do
-
-        displayText+="$((salespersonIndex + 1)). ${salespersonNames[$salespersonIndex]}\n"
-
+# Display registered salesperson names in registration order.
+displaySalespersonList() {
+    local displayText="" i
+    for (( i=0; i<${#salespersonNames[@]}; i++ )); do
+        displayText+="$((i + 1)). ${salespersonNames[$i]}\n"
     done
 
-    whiptail \
-        --title "Salesperson List" \
-        --msgbox \
-        "The following salespersons have been registered:\n\n\
-$displayText" \
-        15 60
+    whiptail --title "Salesperson List" \
+             --msgbox \
+             "The following salespersons have been registered:\n\n$displayText" \
+             15 60
 }
 
-
 # ============================================================
-# Function: Select Models
+# Function: Select Models (single form, quantity per model)
 # ============================================================
-
-selectModels(){
-
+#
+# Presents one whiptail form listing every model with its
+# price and a quantity field. The user types a whole number
+# next to each model. modelsSold is then expanded so that
+# each model name appears once per unit sold.
+#
+# Submitting with all zeros is permitted: modelsSold will be
+# empty for this salesperson/month, and writeRecord will
+# record zero sales with the basic salary.
+#
+# Collect model quantities and store one model name per unit sold.
+selectModels() {
     modelsSold=()
-    modelCount=0
 
-    while true; do
+    # Build alternating label/default-value arguments for the Whiptail form.
+    local -a formArgs=()
+    local i
+    for (( i=0; i<${#modelNames[@]}; i++ )); do
+        formArgs+=("${modelNames[$i]} (£${models[${modelNames[$i]}]}):" "0")
+    done
 
-        local selectedModel
+    local result
+    result=$(
+        whiptail --title "Vehicle Selection" \
+                 --form \
+                 "Enter quantity sold for each model.\n\nSalesperson: $salespersonName\nMonth: ${months[$monthIndex]}" \
+                 20 65 7 \
+                 "${formArgs[@]}" \
+                 --nocancel \
+                 3>&1 1>&2 2>&3
+    ) || return 1
 
-        selectedModel=$(
-            whiptail \
-                --title "Vehicle Selection" \
-                --menu \
-                "Entering models sold for:\n\n\
-$salespersonName\n\n\
-Select a vehicle sold.\n\
-Select FINISHED when all vehicles have been entered." \
-                20 65 7 \
-                1 "A class       (£31,095)" \
-                2 "B class       (£33,162)" \
-                3 "C class       (£42,537)" \
-                4 "E class       (£54,437)" \
-                5 "AMG C65       (£79,660)" \
-                6 "FINISHED" \
-                --nocancel \
-                3>&1 1>&2 2>&3
-        )
+    # Whiptail returns one quantity per line, in the same order as modelNames.
+    local -a quantities
+    mapfile -t quantities <<< "$result"
 
-        case "$selectedModel" in
+    # Store one model name per unit so monthly totals can sum each car's price.
+    # Invalid/empty entries are treated as zero.
+    for (( i=0; i<${#modelNames[@]}; i++ )); do
+        local qty="${quantities[$i]:-0}"
+        if [[ ! "$qty" =~ ^[0-9]+$ ]]; then
+            qty=0
+        fi
 
-            1)
-                modelsSold+=("A class")
-                ((modelCount++))
-                ;;
-
-            2)
-                modelsSold+=("B class")
-                ((modelCount++))
-                ;;
-
-            3)
-                modelsSold+=("C class")
-                ((modelCount++))
-                ;;
-
-            4)
-                modelsSold+=("E class")
-                ((modelCount++))
-                ;;
-
-            5)
-                modelsSold+=("AMG C65")
-                ((modelCount++))
-                ;;
-
-            6)
-                if (( modelCount == 0 )); then
-
-                    whiptail \
-                        --title "No Vehicles Selected" \
-                        --msgbox \
-                        "At least one vehicle must be entered." \
-                        8 50
-
-                else
-                    break
-                fi
-                ;;
-
-            *)
-                return 1
-                ;;
-
-        esac
-
+        local j
+        for (( j=0; j<qty; j++ )); do
+            modelsSold+=("${modelNames[$i]}")
+        done
     done
 }
-
 
 # ============================================================
 # Function: Calculate Monthly Bonus
 # ============================================================
 
-monthlyBonus(){
-
+# Return the bonus amount for the supplied monthly sales total.
+monthlyBonus() {
     local totalSales="$1"
-    local bonus=0
 
-    if (( totalSales >= 650000 )); then
-        bonus=30000
-
-    elif (( totalSales >= 500000 )); then
-        bonus=25000
-
-    elif (( totalSales >= 400000 )); then
-        bonus=20000
-
-    elif (( totalSales >= 300000 )); then
-        bonus=15000
-
-    elif (( totalSales >= 200000 )); then
-        bonus=10000
+    if   (( totalSales >= 650000 )); then echo 30000
+    elif (( totalSales >= 500000 )); then echo 25000
+    elif (( totalSales >= 400000 )); then echo 20000
+    elif (( totalSales >= 300000 )); then echo 15000
+    elif (( totalSales >= 200000 )); then echo 10000
+    else                                  echo 0
     fi
-
-    echo "$bonus"
 }
-
 
 # ============================================================
 # Function: Write Monthly Record
 # ============================================================
 
-writeRecord(){
+# Calculate monthly sales, bonus, and salary; append the result to Outputs.txt.
+writeRecord() {
+    local totalSales=0 bonus monthlySalary model
 
-    local totalSales=0
-    local bonus=0
-    local monthlySalary=0
-    local model
-
+    # Sum the price of every unit recorded in modelsSold.
     for model in "${modelsSold[@]}"; do
         (( totalSales += models["$model"] ))
     done
 
     bonus=$(monthlyBonus "$totalSales")
-
     monthlySalary=$((basicSalary + bonus))
 
     printf "%s|%s|%s|%d|%d\n" \
         "${months[$monthIndex]}" \
         "$salespersonName" \
-        "$(IFS=','; echo "${modelsSold[*]}")" \
+        "$(joinBy ',' "${modelsSold[@]}")" \
         "$totalSales" \
         "$monthlySalary" >> "$outputFile"
 }
 
-
+# ============================================================
+# FUNCTIONS: ANNUAL PROCESSING AND OUTPUT
 # ============================================================
 # Function: Calculate Annual Net Salary
 # ============================================================
-
-netTaxedSalary(){
-
+#
+# UK-style brackets:
+#   0 – 12,500      : 0%
+#   12,500 – 50,000 : 20%
+#   50,000 – 150,000: 40%
+#   above 150,000   : 45%
+#
+# Calculate annual net salary by applying the progressive tax bands below.
+netTaxedSalary() {
     local annualSalary="$1"
     local tax=0
 
-    if (( annualSalary <= 12500 )); then
+    if (( annualSalary > 12500 )); then
+        local band=$(( annualSalary < 50000 ? annualSalary : 50000 ))
+        tax=$(( tax + (band - 12500) * 20 / 100 ))
+    fi
 
-        tax=0
+    if (( annualSalary > 50000 )); then
+        local band=$(( annualSalary < 150000 ? annualSalary : 150000 ))
+        tax=$(( tax + (band - 50000) * 40 / 100 ))
+    fi
 
-    elif (( annualSalary <= 50000 )); then
-
-        tax=$(( (annualSalary - 12500) * 20 / 100 ))
-
-    elif (( annualSalary <= 150000 )); then
-
-        tax=$(( (50000 - 12500) * 20 / 100 ))
-
-        tax=$(( tax +
-            (annualSalary - 50000) * 40 / 100 ))
-
-    else
-
-        tax=$(( (50000 - 12500) * 20 / 100 ))
-
-        tax=$(( tax +
-            (150000 - 50000) * 40 / 100 ))
-
+    if (( annualSalary > 150000 )); then
+        tax=$(( tax + (annualSalary - 150000) * 45 / 100 ))
     fi
 
     echo $((annualSalary - tax))
 }
 
-
 # ============================================================
 # Function: Calculate Annual Salary
 # ============================================================
 
-calculateAnnualSalary(){
-
+# Aggregate monthly salaries, calculate annual net salary, and write annual records.
+calculateAnnualSalary() {
     local -a records
-
-    local salesperson
-    local record
-    local recordName
-    local recordSalary
-    local firstMonth
-
-    local annualGross
-    local annualNet
+    local -A grossByPerson
 
     mapfile -t records < "$outputFile"
-
     : > "$annualFile"
 
-    if (( ${#records[@]} == 0 )); then
-        return 1
-    fi
+    (( ${#records[@]} == 0 )) && return 1
 
+    # Add each monthly salary to the matching salesperson's annual total.
+    # Names are normalised (trim whitespace/CR) so they match
+    # what is stored in salespersonNames[].
+    local record recordName recordSalary
+    for record in "${records[@]}"; do
+        # Strip any trailing CR that may have crept in (CRLF file).
+        record="${record%$'\r'}"
 
-    # --------------------------------------------------------
-    # First month is used only to establish the salesperson
-    # order.
-    # --------------------------------------------------------
+        IFS='|' read -r _ recordName _ _ recordSalary <<< "$record"
 
-    IFS='|' read -r firstMonth _ _ _ _ <<< "${records[0]}"
+        # Trim leading/trailing whitespace from the name.
+        recordName="${recordName#"${recordName%%[![:space:]]*}"}"
+        recordName="${recordName%"${recordName##*[![:space:]]}"}"
 
+        (( grossByPerson["$recordName"] += recordSalary ))
+    done
 
-    # --------------------------------------------------------
-    # Use the salespersonNames array instead of extracting
-    # names from the monthly records.
-    #
-    # This is possible because the names are fixed for the
-    # entire year.
-    # --------------------------------------------------------
-
+    # Preserve registration order here; the following function sorts the records.
+    local salesperson annualGross annualNet
     for salesperson in "${salespersonNames[@]}"; do
-
-        annualGross=0
-
-        for record in "${records[@]}"; do
-
-            IFS='|' read -r \
-                _ \
-                recordName \
-                _ \
-                _ \
-                recordSalary <<< "$record"
-
-            if [[ "$recordName" == "$salesperson" ]]; then
-                (( annualGross += recordSalary ))
-            fi
-
-        done
-
+        annualGross="${grossByPerson[$salesperson]:-0}"
         annualNet=$(netTaxedSalary "$annualGross")
-
-        printf "%s|%d|%d\n" \
-            "$salesperson" \
-            "$annualGross" \
-            "$annualNet" >> "$annualFile"
-
+        printf "%s|%d|%d\n" "$salesperson" "$annualGross" "$annualNet" >> "$annualFile"
     done
 }
 
-
 # ============================================================
-# Function: Bubble Sort AnnualOutputs.txt
+# Function: Bubble Sort AnnualOutputs.txt (by name)
 # ============================================================
 
-bubbleSortAnnual(){
-
+# Sort annual salary records alphabetically by salesperson name.
+bubbleSortAnnual() {
     local -a records
-
-    local recordCount
-    local outerIndex
-    local innerIndex
-
-    local firstName
-    local secondName
-
-    local temporaryRecord
+    local recordCount outer inner
+    local firstName secondName temporary
 
     mapfile -t records < "$annualFile"
-
     recordCount="${#records[@]}"
 
+    for (( outer=0; outer<recordCount-1; outer++ )); do
+        for (( inner=0; inner<recordCount-outer-1; inner++ )); do
+            IFS='|' read -r firstName _ _ <<< "${records[$inner]}"
+            IFS='|' read -r secondName _ _ <<< "${records[$((inner + 1))]}"
 
-    for (( outerIndex=0;
-           outerIndex<recordCount-1;
-           outerIndex++ )); do
-
-        for (( innerIndex=0;
-               innerIndex<recordCount-outerIndex-1;
-               innerIndex++ )); do
-
-            IFS='|' read -r firstName _ _ <<< \
-                "${records[$innerIndex]}"
-
-            IFS='|' read -r secondName _ _ <<< \
-                "${records[$((innerIndex + 1))]}"
-
-
+            # Swap adjacent records if their names are out of alphabetical order.
             if [[ "$firstName" > "$secondName" ]]; then
-
-                temporaryRecord="${records[$innerIndex]}"
-
-                records[$innerIndex]=\
-                    "${records[$((innerIndex + 1))]}"
-
-                records[$((innerIndex + 1))]=\
-                    "$temporaryRecord"
-
+                temporary="${records[$inner]}"
+                records[$inner]="${records[$((inner + 1))]}"
+                records[$((inner + 1))]="$temporary"
             fi
-
         done
-
     done
-
 
     : > "$annualFile"
-
-    for record in "${records[@]}"; do
-        echo "$record" >> "$annualFile"
-    done
+    printf "%s\n" "${records[@]}" >> "$annualFile"
 }
-
 
 # ============================================================
 # Function: Display Annual Salary
 # ============================================================
 
-displayAnnualSalary(){
-
+# Read and display annual gross and net salary records in a Whiptail window.
+displayAnnualSalary() {
     local -a records
-    local displayText=""
-    local salesperson
-    local annualGross
-    local annualNet
+    local displayText="" record salesperson annualGross annualNet
 
     mapfile -t records < "$annualFile"
 
-
     for record in "${records[@]}"; do
-
-        IFS='|' read -r \
-            salesperson \
-            annualGross \
-            annualNet <<< "$record"
-
+        IFS='|' read -r salesperson annualGross annualNet <<< "$record"
         displayText+="Name: $salesperson\n"
         displayText+="Annual Gross Salary: £$annualGross\n"
         displayText+="Annual Net Salary: £$annualNet\n"
         displayText+="--------------------------------\n"
-
     done
 
-
-    whiptail \
-        --title "Annual Salary Results" \
-        --scrolltext \
-        --msgbox \
-        "$displayText" \
-        20 70
+    whiptail --title "Annual Salary Results" \
+             --scrolltext \
+             --msgbox "$displayText" \
+             20 70
 }
 
-
 # ============================================================
-# Main Program
+# MAIN PROGRAM
 # ============================================================
 
 : > "$outputFile"
 : > "$annualFile"
 
-
-# ============================================================
-# STEP 1: Number of Salespersons
-# ============================================================
+# ------------------------------------------------------------
+# STEP 1: Validate the number of salespersons
+# ------------------------------------------------------------
 
 while true; do
-
     salespersonCount=$(
-        whiptail \
-            --title "Salesperson Setup" \
-            --inputbox \
-            "Enter number of salespersons (3-20):" \
-            10 60 \
-            "" \
-            --nocancel \
-            3>&1 1>&2 2>&3
+        whiptail --title "Salesperson Setup" \
+                 --inputbox "Enter number of salespersons (3-20):" \
+                 10 60 "" \
+                 --nocancel \
+                 3>&1 1>&2 2>&3
     )
 
     if [[ "$salespersonCount" =~ ^[0-9]+$ ]] &&
        (( salespersonCount >= 3 && salespersonCount <= 20 )); then
-
         break
     fi
 
-    whiptail \
-        --title "Invalid Input" \
-        --msgbox \
-        "Please enter a whole number between 3 and 20." \
-        8 50
-
+    whiptail --title "Invalid Input" \
+             --msgbox "Please enter a whole number between 3 and 20." \
+             8 50
 done
 
-
-# ============================================================
-# STEP 2: Enter Salesperson Names ONCE
-# ============================================================
+# ------------------------------------------------------------
+# STEP 2: Register salesperson names once
+# ------------------------------------------------------------
 
 enterSalespersonNames
-
 displaySalespersonList
 
+# ------------------------------------------------------------
+# STEP 3: Collect monthly sales for every salesperson
+# ------------------------------------------------------------
 
-# ============================================================
-# STEP 3: Enter Monthly Sales
-# ============================================================
-
-for (( currentMonth=0;
-       currentMonth<12;
-       currentMonth++ )); do
-
+for (( currentMonth=0; currentMonth<12; currentMonth++ )); do
     monthIndex="$currentMonth"
 
-
-    whiptail \
-        --title "Monthly Data Entry" \
-        --msgbox \
-        "Entering sales data for:\n\n\
-${months[$monthIndex]}\n\n\
-There are $salespersonCount salespersons." \
-        10 60
-
-
-    # --------------------------------------------------------
-    # Loop through the stored salesperson names.
-    # --------------------------------------------------------
+    whiptail --title "Monthly Data Entry" \
+             --msgbox \
+             "Entering sales data for:\n\n${months[$monthIndex]}\n\nThere are $salespersonCount salespersons." \
+             10 60
 
     for (( salespersonIndex=0;
            salespersonIndex<salespersonCount;
@@ -620,86 +416,44 @@ There are $salespersonCount salespersons." \
 
         salespersonName="${salespersonNames[$salespersonIndex]}"
 
-
-        whiptail \
-            --title "${months[$monthIndex]}" \
-            --msgbox \
-            "Entering models sold for:\n\n\
-$salespersonName\n\n\
-Month: ${months[$monthIndex]}" \
-            11 60
-
-
-        # ----------------------------------------------------
-        # Only models are entered here.
-        # ----------------------------------------------------
-
         selectModels
-
-        # ----------------------------------------------------
-        # writeRecord() automatically gets:
-        #
-        #   month       -> monthIndex
-        #   salesperson -> salespersonName
-        #   models      -> modelsSold
-        #
-        # ----------------------------------------------------
-
         writeRecord
-
     done
-
 done
 
+# ------------------------------------------------------------
+# STEP 4: Calculate annual gross and net salaries
+# ------------------------------------------------------------
 
-# ============================================================
-# STEP 4: Calculate Annual Salaries
-# ============================================================
-
-whiptail \
-    --title "Processing" \
-    --infobox \
-    "Calculating annual salaries..." \
-    8 50
-
+whiptail --title "Processing" \
+         --infobox "Calculating annual salaries..." \
+         8 50
 sleep 1
-
 calculateAnnualSalary
 
+# ------------------------------------------------------------
+# STEP 5: Sort annual results alphabetically
+# ------------------------------------------------------------
 
-# ============================================================
-# STEP 5: Alphabetical Bubble Sort
-# ============================================================
-
-whiptail \
-    --title "Processing" \
-    --infobox \
-    "Sorting annual salaries alphabetically..." \
-    8 50
-
+whiptail --title "Processing" \
+         --infobox "Sorting annual salaries alphabetically..." \
+         8 50
 sleep 1
-
 bubbleSortAnnual
 
-
-# ============================================================
-# STEP 6: Display Results
-# ============================================================
+# ------------------------------------------------------------
+# STEP 6: Display annual salary results
+# ------------------------------------------------------------
 
 displayAnnualSalary
 
+# ------------------------------------------------------------
+# STEP 7: Confirm completion and output file locations
+# ------------------------------------------------------------
 
-# ============================================================
-# STEP 7: Completion
-# ============================================================
-
-whiptail \
-    --title "Program Complete" \
-    --msgbox \
-    "Annual salary calculations have been completed.\n\n\
-Monthly records:\n$outputFile\n\n\
-Annual results:\n$annualFile" \
-    12 65
-
+whiptail --title "Program Complete" \
+         --msgbox \
+         "Annual salary calculations have been completed.\n\nMonthly records:\n$outputFile\n\nAnnual results:\n$annualFile" \
+         12 65
 
 exit 0

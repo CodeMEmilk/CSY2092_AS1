@@ -20,31 +20,27 @@ prompt_three() {
 }
 
 # ---------------------------------------------------------------
-# Menu
+# Whiptail menu
 # ---------------------------------------------------------------
-show_menu() {
-    echo ""
-    echo "==========================="
-    echo "      PS1 Changer"
-    echo "==========================="
-    echo "  1) Prompt option 1"
-    echo "  2) Prompt option 2"
-    echo "  3) Prompt option 3"
-    echo "  q) Quit"
-    echo "==========================="
-    echo ""
-}
-
 choose_prompt() {
-    show_menu
-    read -rp "Choose a prompt [1-3, q]: " choice
+    local choice
+    choice=$(whiptail --title "PS1 Changer" \
+        --menu "Choose a prompt style:" 15 60 3 \
+        "1" "Prompt option 1" \
+        "2" "Prompt option 2" \
+        "3" "Prompt option 3" \
+        3>&1 1>&2 2>&3)
+
+    # User cancelled (Esc / Cancel button)
+    if [ $? -ne 0 ]; then
+        echo "No changes made."
+        return
+    fi
 
     case "$choice" in
         1) prompt_one   && echo "✔ Prompt 1 applied." ;;
         2) prompt_two   && echo "✔ Prompt 2 applied." ;;
         3) prompt_three && echo "✔ Prompt 3 applied." ;;
-        q|Q) echo "No changes made." ;;
-        *)   echo "✘ Invalid choice: '$choice'" ;;
     esac
 }
 
